@@ -20,6 +20,7 @@ pub enum Expression {
     Identifier(IdentifierExpression),
     Integer(IntegerExpression),
     Float(FloatExpression),
+    String(StringExpression),
     Prefix(),
     Postfix(),
 }
@@ -32,6 +33,7 @@ impl std::fmt::Display for Expression {
             Expression::Identifier(identifier) => identifier.fmt(f),
             Expression::Integer(integer_expression) => integer_expression.fmt(f),
             Expression::Float(float_expression) => float_expression.fmt(f),
+            Expression::String(string_expression) => string_expression.fmt(f),
         }
     }
 }
@@ -92,14 +94,25 @@ impl std::fmt::Display for FloatExpression {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct StringExpression {
+    pub value: String,
+}
+
+impl std::fmt::Display for StringExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
 #[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Node>,
 }
 
 impl Program {
-    pub fn new() -> Program {
-        Program {
+    pub fn new() -> Self {
+        Self {
             statements: Vec::new(),
         }
     }

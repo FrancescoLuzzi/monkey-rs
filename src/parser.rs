@@ -100,6 +100,9 @@ impl<'a> Parser<'a> {
     fn parse_expr_prefix(&mut self, token: Token) -> Option<ast::Expression> {
         match token {
             Token::Ident(_) => self.parse_ident(token),
+            Token::Integer(_) => self.parse_int(token),
+            Token::Floating(_) => self.parse_float(token),
+            Token::String(_) => self.parse_string(token),
             _ => None,
         }
     }
@@ -113,6 +116,33 @@ impl<'a> Parser<'a> {
             panic!("Ident expected to parse_ident")
         }
     }
+
+    fn parse_int(&mut self, token: Token) -> Option<ast::Expression> {
+        if let Token::Integer(num) = token {
+            Some(ast::Expression::Integer(ast::IntegerExpression {
+                number: num,
+            }))
+        } else {
+            panic!("Ident expected to parse_int")
+        }
+    }
+
+    fn parse_float(&mut self, token: Token) -> Option<ast::Expression> {
+        if let Token::Floating(num) = token {
+            Some(ast::Expression::Float(ast::FloatExpression { number: num }))
+        } else {
+            panic!("Ident expected to parse_float")
+        }
+    }
+
+    fn parse_string(&mut self, token: Token) -> Option<ast::Expression> {
+        if let Token::String(value) = token {
+            Some(ast::Expression::String(ast::StringExpression { value }))
+        } else {
+            panic!("Ident expected to parse_string")
+        }
+    }
+
     fn parse_expr_infix(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
         None
     }
@@ -155,25 +185,22 @@ mod test {
             program.statements[0],
             ast::Node::Let(ast::LetStatement {
                 name: "some".into(),
-                value: ast::Expression::Identifier(ast::IdentifierExpression {
-                    name: "test".into()
-                })
+                value: ast::Expression::Integer(ast::IntegerExpression { number: 3 })
             })
         )
     }
     #[test]
     fn parse_return() {
-        let source = "return 3;";
+        let source = "return \"hello\";";
         let lex = lexer::Lexer::new(source);
         let mut parser = Parser::new(lex);
         let program = parser.parse_program().expect("couldn't parse let stmt");
         assert_eq!(program.statements.len(), 1);
         assert_eq!(
             program.statements[0],
-            ast::Node::Let(ast::LetStatement {
-                name: "some".into(),
-                value: ast::Expression::Identifier(ast::IdentifierExpression {
-                    name: "test".into()
+            ast::Node::Return(ast::ReturnStatement {
+                value: ast::Expression::String(ast::StringExpression {
+                    value: "hello".into(),
                 })
             })
         )
