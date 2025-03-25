@@ -1,3 +1,5 @@
+use crate::token::Token;
+
 #[derive(Debug, PartialEq)]
 pub enum Node {
     Let(LetStatement),
@@ -21,19 +23,19 @@ pub enum Expression {
     Integer(IntegerExpression),
     Float(FloatExpression),
     String(StringExpression),
-    Prefix(),
-    Postfix(),
+    Char(CharExpression),
+    Infix(InfixExpression),
 }
 
 impl std::fmt::Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expression::Prefix() => f.write_str("prefix"),
-            Expression::Postfix() => f.write_str("postfix"),
+            Expression::Infix(infix) => infix.fmt(f),
             Expression::Identifier(identifier) => identifier.fmt(f),
             Expression::Integer(integer_expression) => integer_expression.fmt(f),
             Expression::Float(float_expression) => float_expression.fmt(f),
             Expression::String(string_expression) => string_expression.fmt(f),
+            Expression::Char(char_expression) => char_expression.fmt(f),
         }
     }
 }
@@ -105,6 +107,30 @@ impl std::fmt::Display for StringExpression {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct CharExpression {
+    pub value: char,
+}
+
+impl std::fmt::Display for CharExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct InfixExpression {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+    pub op: Token,
+}
+
+impl std::fmt::Display for InfixExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.left, self.op, self.right)
+    }
+}
+
 #[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Node>,
@@ -115,6 +141,12 @@ impl Program {
         Self {
             statements: Vec::new(),
         }
+    }
+}
+
+impl Default for Program {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

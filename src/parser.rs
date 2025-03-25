@@ -4,7 +4,7 @@ use crate::token::Token;
 use std::iter::Peekable;
 
 #[repr(u8)]
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Precedence {
     Min = 0,
     Equals,
@@ -103,6 +103,8 @@ impl<'a> Parser<'a> {
             Token::Integer(_) => self.parse_int(token),
             Token::Floating(_) => self.parse_float(token),
             Token::String(_) => self.parse_string(token),
+            Token::Char(_) => self.parse_char(token),
+            // Token::Bang =>  parse negated with correct precedence
             _ => None,
         }
     }
@@ -123,7 +125,7 @@ impl<'a> Parser<'a> {
                 number: num,
             }))
         } else {
-            panic!("Ident expected to parse_int")
+            panic!("Integer expected to parse_int")
         }
     }
 
@@ -131,7 +133,7 @@ impl<'a> Parser<'a> {
         if let Token::Floating(num) = token {
             Some(ast::Expression::Float(ast::FloatExpression { number: num }))
         } else {
-            panic!("Ident expected to parse_float")
+            panic!("Floating expected to parse_float")
         }
     }
 
@@ -139,12 +141,44 @@ impl<'a> Parser<'a> {
         if let Token::String(value) = token {
             Some(ast::Expression::String(ast::StringExpression { value }))
         } else {
-            panic!("Ident expected to parse_string")
+            panic!("String expected to parse_string")
+        }
+    }
+
+    fn parse_char(&mut self, token: Token) -> Option<ast::Expression> {
+        if let Token::Char(value) = token {
+            Some(ast::Expression::Char(ast::CharExpression { value }))
+        } else {
+            panic!("Char expected to parse_char")
         }
     }
 
     fn parse_expr_infix(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
-        None
+        match token {
+            Token::Plus
+            | Token::Minus
+            | Token::Asterisk
+            | Token::Slash
+            | Token::Eq
+            | Token::Neq
+            | Token::Gt
+            | Token::Lt
+            | Token::Ge
+            | Token::Le
+            | Token::Or
+            | Token::And
+            | Token::BitOr
+            | Token::BitAnd => {
+                let precedence = get_token_precedence(&token);
+                let next_token = self.next_token()?;
+                Some(ast::Expression::Infix(ast::InfixExpression {
+                    left: Box::new(left),
+                    op: token.clone(),
+                    right: Box::new(self.parse_expr(next_token, precedence)?),
+                }))
+            }
+            _ => None,
+        }
     }
 
     fn skip_optional_semicolon(&mut self) -> bool {
@@ -170,24 +204,67 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::{ast, lexer};
+    use crate::{ast, lexer, token};
 
     use super::Parser;
 
     #[test]
     fn parse_let_stmt() {
-        let source = "let some = 3;";
-        let lex = lexer::Lexer::new(source);
-        let mut parser = Parser::new(lex);
-        let program = parser.parse_program().expect("couldn't parse let stmt");
-        assert_eq!(program.statements.len(), 1);
-        assert_eq!(
-            program.statements[0],
-            ast::Node::Let(ast::LetStatement {
-                name: "some".into(),
-                value: ast::Expression::Integer(ast::IntegerExpression { number: 3 })
-            })
-        )
+        let tests: [(&str, ast::Node); 5] = [
+            (
+                "let some = 3;",
+                ast::Node::Let(ast::LetStatement {
+                    name: "some".into(),
+                    value: ast::Expression::Integer(ast::IntegerExpression { number: 3 }),
+                }),
+            ),
+            (
+                "let some = \"some\";",
+                ast::Node::Let(ast::LetStatement {
+                    name: "some".into(),
+                    value: ast::Expression::String(ast::StringExpression {
+                        value: "some".into(),
+                    }),
+                }),
+            ),
+            (
+                "let some = 's';",
+                ast::Node::Let(ast::LetStatement {
+                    name: "some".into(),
+                    value: ast::Expression::Char(ast::CharExpression { value: 's' }),
+                }),
+            ),
+            (
+                "let some = test;",
+                ast::Node::Let(ast::LetStatement {
+                    name: "some".into(),
+                    value: ast::Expression::Identifier(ast::IdentifierExpression {
+                        name: "test".into(),
+                    }),
+                }),
+            ),
+            (
+                "let some = 1 + 2;",
+                ast::Node::Let(ast::LetStatement {
+                    name: "some".into(),
+                    value: ast::Expression::Infix(ast::InfixExpression {
+                        left: ast::Expression::Integer(ast::IntegerExpression { number: 1 }).into(),
+                        op: token::Token::Plus,
+                        right: ast::Expression::Integer(ast::IntegerExpression { number: 2 })
+                            .into(),
+                    }),
+                }),
+            ),
+        ];
+        for (source, node) in tests {
+            let lex = lexer::Lexer::new(source);
+            let mut parser = Parser::new(lex);
+            let program = parser
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse let stmt: {source}"));
+            assert_eq!(program.statements.len(), 1);
+            assert_eq!(program.statements[0], node)
+        }
     }
     #[test]
     fn parse_return() {
