@@ -51,6 +51,9 @@ impl<'a> Parser<'a> {
         let res = match token {
             Token::Let => self.parse_let_stmt(token),
             Token::Return => self.parse_return_stmt(token),
+            // support fn test(){...}
+            // it needs to be represented as Let(name,FunctionExpr(block))
+            //Token::Function => self.parse_function_stmt(),
             _ => Some(ast::Node::Expression(
                 self.parse_expr(token, Precedence::Min)?,
             )),
@@ -104,7 +107,8 @@ impl<'a> Parser<'a> {
             Token::Floating(_) => self.parse_float(token),
             Token::String(_) => self.parse_string(token),
             Token::Char(_) => self.parse_char(token),
-            // Token::Bang =>  parse negated with correct precedence
+            Token::Bang => self.parse_negated(token),
+            Token::Function => self.parse_function(token),
             _ => None,
         }
     }
@@ -153,6 +157,72 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_negated(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::Bang) {
+            panic!("Bang expected to parse_negated")
+        }
+
+        let next_token = self.next_token()?;
+        Some(ast::Expression::Negated(ast::NegatedExpression {
+            expr: Box::new(self.parse_expr(next_token, Precedence::Prefix)?),
+        }))
+    }
+
+    fn parse_function(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::Function) {
+            panic!("Bang expected to parse_negated")
+        }
+        if !matches!(self.next_token()?, Token::Lparen) {
+            return None;
+        }
+        let params = self.parse_function_params()?;
+
+        let next_token = self.next_token()?;
+        if let ast::Expression::Block(block) = self.parse_block(next_token)? {
+            Some(ast::Expression::Function(ast::FunctionExpression {
+                parameters: params,
+                body: block,
+            }))
+        } else {
+            panic!("parse_block returne something that wasnt a block")
+        }
+    }
+
+    fn parse_function_params(&mut self) -> Option<Vec<ast::IdentifierExpression>> {
+        let mut result: Vec<ast::IdentifierExpression> = Vec::new();
+        if matches!(self.lexer.peek()?, Token::Rparen) {
+            self.next_token()?;
+            return Some(result);
+        }
+        loop {
+            if let Token::Ident(ident) = self.next_token()? {
+                result.push(ast::IdentifierExpression { name: ident });
+            } else {
+                return None;
+            }
+            if !self.skip_optional_comma() {
+                break;
+            }
+        }
+        if !matches!(self.next_token()?, Token::Rparen) {
+            return None;
+        }
+        Some(result)
+    }
+
+    fn parse_block(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::Lsquirly) {
+            panic!("Lsquirly expected to parse_block")
+        }
+        let mut statements: Vec<ast::Node> = Vec::new();
+        let mut next_token = self.next_token()?;
+        while !matches!(next_token, Token::Rsquirly | Token::Eof) {
+            statements.push(self.parse(next_token)?);
+            next_token = self.next_token()?;
+        }
+        Some(ast::Expression::Block(ast::BlockExpression { statements }))
+    }
+
     fn parse_expr_infix(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
         match token {
             Token::Plus
@@ -178,6 +248,15 @@ impl<'a> Parser<'a> {
                 }))
             }
             _ => None,
+        }
+    }
+
+    fn skip_optional_comma(&mut self) -> bool {
+        if let Some(Token::Comma) = self.lexer.peek() {
+            self.next_token();
+            true
+        } else {
+            false
         }
     }
 
@@ -210,7 +289,7 @@ mod test {
 
     #[test]
     fn parse_let_stmt() {
-        let tests: [(&str, ast::Node); 5] = [
+        let tests: [(&str, ast::Node); 7] = [
             (
                 "let some = 3;",
                 ast::Node::Let(ast::LetStatement {
@@ -255,6 +334,53 @@ mod test {
                     }),
                 }),
             ),
+            (
+                "let some = fn(){};",
+                ast::Node::Let(ast::LetStatement {
+                    name: "some".into(),
+                    value: ast::Expression::Function(ast::FunctionExpression {
+                        parameters: Vec::new(),
+                        body: ast::BlockExpression {
+                            statements: Vec::new(),
+                        },
+                    }),
+                }),
+            ),
+            (
+                "let some = fn(a,b){let x = a+b; return x;};",
+                ast::Node::Let(ast::LetStatement {
+                    name: "some".into(),
+                    value: ast::Expression::Function(ast::FunctionExpression {
+                        parameters: vec![
+                            ast::IdentifierExpression { name: "a".into() },
+                            ast::IdentifierExpression { name: "b".into() },
+                        ],
+                        body: ast::BlockExpression {
+                            statements: vec![
+                                ast::Node::Let(ast::LetStatement {
+                                    name: "x".into(),
+                                    value: ast::Expression::Infix(ast::InfixExpression {
+                                        left: ast::Expression::Identifier(
+                                            ast::IdentifierExpression { name: "a".into() },
+                                        )
+                                        .into(),
+                                        op: token::Token::Plus,
+                                        right: ast::Expression::Identifier(
+                                            ast::IdentifierExpression { name: "b".into() },
+                                        )
+                                        .into(),
+                                    }),
+                                }),
+                                ast::Node::Return(ast::ReturnStatement {
+                                    value: ast::Expression::Identifier(ast::IdentifierExpression {
+                                        name: "x".into(),
+                                    }),
+                                }),
+                            ],
+                        },
+                    }),
+                }),
+            ),
         ];
         for (source, node) in tests {
             let lex = lexer::Lexer::new(source);
@@ -266,6 +392,7 @@ mod test {
             assert_eq!(program.statements[0], node)
         }
     }
+
     #[test]
     fn parse_return() {
         let source = "return \"hello\";";

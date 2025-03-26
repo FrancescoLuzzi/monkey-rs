@@ -24,18 +24,24 @@ pub enum Expression {
     Float(FloatExpression),
     String(StringExpression),
     Char(CharExpression),
+    Negated(NegatedExpression),
+    Block(BlockExpression),
+    Function(FunctionExpression),
     Infix(InfixExpression),
 }
 
 impl std::fmt::Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expression::Infix(infix) => infix.fmt(f),
             Expression::Identifier(identifier) => identifier.fmt(f),
             Expression::Integer(integer_expression) => integer_expression.fmt(f),
             Expression::Float(float_expression) => float_expression.fmt(f),
             Expression::String(string_expression) => string_expression.fmt(f),
             Expression::Char(char_expression) => char_expression.fmt(f),
+            Expression::Negated(negated_expression) => negated_expression.fmt(f),
+            Expression::Block(block_expression) => block_expression.fmt(f),
+            Expression::Function(function_expression) => function_expression.fmt(f),
+            Expression::Infix(infix) => infix.fmt(f),
         }
     }
 }
@@ -131,32 +137,82 @@ impl std::fmt::Display for InfixExpression {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
+pub struct NegatedExpression {
+    pub expr: Box<Expression>,
+}
+
+impl std::fmt::Display for NegatedExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "!{}", self.expr)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct BlockExpression {
+    pub statements: Vec<Node>,
+}
+
+impl std::fmt::Display for BlockExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{\n{}}}",
+            self.statements
+                .iter()
+                .map(|stmt| format!("{stmt}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FunctionExpression {
+    // TODO: maybe add a bit to distinguish between
+    // let test = fn(){}
+    // fn test(){}
+    // mostly for formatting purposes
+    pub parameters: Vec<IdentifierExpression>,
+    pub body: BlockExpression,
+}
+
+impl std::fmt::Display for FunctionExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "fn({}){}",
+            self.parameters
+                .iter()
+                .map(|stmt| format!("{stmt}"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.body
+        )
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct Program {
     pub statements: Vec<Node>,
 }
 
 impl Program {
     pub fn new() -> Self {
-        Self {
-            statements: Vec::new(),
-        }
-    }
-}
-
-impl Default for Program {
-    fn default() -> Self {
-        Self::new()
+        Self::default()
     }
 }
 
 impl std::fmt::Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let statements: Vec<String> = self
-            .statements
-            .iter()
-            .map(|stmt| format!("{stmt}"))
-            .collect();
-        write!(f, "{}", statements.join(""))
+        write!(
+            f,
+            "{}",
+            self.statements
+                .iter()
+                .map(|stmt| format!("{stmt}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
     }
 }
