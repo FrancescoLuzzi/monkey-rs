@@ -109,6 +109,7 @@ impl<'a> Parser<'a> {
             Token::Char(_) => self.parse_char(token),
             Token::Bang => self.parse_negated(token),
             Token::Function => self.parse_function(token),
+            Token::Lparen => self.parse_group(token),
             _ => None,
         }
     }
@@ -168,6 +169,18 @@ impl<'a> Parser<'a> {
         }))
     }
 
+    fn parse_group(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::Lparen) {
+            panic!("Lparen expected to parse_group")
+        }
+        let next_token = self.next_token()?;
+        let result = self.parse_expr(next_token, Precedence::Min);
+        match self.next_token()? {
+            Token::Rparen => result,
+            _ => None,
+        }
+    }
+
     fn parse_function(&mut self, token: Token) -> Option<ast::Expression> {
         if !matches!(token, Token::Function) {
             panic!("Bang expected to parse_negated")
@@ -204,10 +217,10 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
-        if !matches!(self.next_token()?, Token::Rparen) {
-            return None;
+        match self.next_token()? {
+            Token::Rparen => Some(result),
+            _ => None,
         }
-        Some(result)
     }
 
     fn parse_block(&mut self, token: Token) -> Option<ast::Expression> {
@@ -247,6 +260,43 @@ impl<'a> Parser<'a> {
                     right: Box::new(self.parse_expr(next_token, precedence)?),
                 }))
             }
+            Token::Lparen => self.parse_call(token, left),
+            _ => None,
+        }
+    }
+
+    fn parse_call(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
+        if !matches!(token, Token::Lparen) {
+            panic!("Lparen expected to parse_call")
+        }
+        let function = if let ast::Expression::Identifier(func_name) = left {
+            func_name.name
+        } else {
+            return None;
+        };
+
+        let mut parameters = Vec::new();
+        if matches!(self.lexer.peek()?, Token::Rparen) {
+            self.next_token()?;
+            return Some(ast::Expression::Call(ast::CallExpression {
+                function,
+                parameters,
+            }));
+        }
+
+        loop {
+            let next_token = self.next_token()?;
+            parameters.push(self.parse_expr(next_token, Precedence::Min)?);
+            if !self.skip_optional_comma() {
+                break;
+            }
+        }
+        match self.next_token()? {
+            Token::Rparen => Some(ast::Expression::Call(ast::CallExpression {
+                function,
+                parameters,
+            })),
+
             _ => None,
         }
     }
@@ -289,7 +339,7 @@ mod test {
 
     #[test]
     fn parse_let_stmt() {
-        let tests: [(&str, ast::Node); 7] = [
+        let tests: [(&str, ast::Node); 9] = [
             (
                 "let some = 3;",
                 ast::Node::Let(ast::LetStatement {
@@ -378,6 +428,49 @@ mod test {
                                 }),
                             ],
                         },
+                    }),
+                }),
+            ),
+            (
+                "let res = test();",
+                ast::Node::Let(ast::LetStatement {
+                    name: "res".into(),
+                    value: ast::Expression::Call(ast::CallExpression {
+                        function: "test".into(),
+                        parameters: Vec::new(),
+                    }),
+                }),
+            ),
+            (
+                "let res = test(a, (b+1)*2 );",
+                ast::Node::Let(ast::LetStatement {
+                    name: "res".into(),
+                    value: ast::Expression::Call(ast::CallExpression {
+                        function: "test".into(),
+                        parameters: vec![
+                            ast::Expression::Identifier(ast::IdentifierExpression {
+                                name: "a".into(),
+                            }),
+                            ast::Expression::Infix(ast::InfixExpression {
+                                left: ast::Expression::Infix(ast::InfixExpression {
+                                    left: ast::Expression::Identifier(ast::IdentifierExpression {
+                                        name: "b".into(),
+                                    })
+                                    .into(),
+                                    op: token::Token::Plus,
+                                    right: ast::Expression::Integer(ast::IntegerExpression {
+                                        number: 1,
+                                    })
+                                    .into(),
+                                })
+                                .into(),
+                                op: token::Token::Asterisk,
+                                right: ast::Expression::Integer(ast::IntegerExpression {
+                                    number: 2,
+                                })
+                                .into(),
+                            }),
+                        ],
                     }),
                 }),
             ),

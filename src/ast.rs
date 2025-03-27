@@ -27,6 +27,7 @@ pub enum Expression {
     Negated(NegatedExpression),
     Block(BlockExpression),
     Function(FunctionExpression),
+    Call(CallExpression),
     Infix(InfixExpression),
 }
 
@@ -41,6 +42,7 @@ impl std::fmt::Display for Expression {
             Expression::Negated(negated_expression) => negated_expression.fmt(f),
             Expression::Block(block_expression) => block_expression.fmt(f),
             Expression::Function(function_expression) => function_expression.fmt(f),
+            Expression::Call(call_expression) => call_expression.fmt(f),
             Expression::Infix(infix) => infix.fmt(f),
         }
     }
@@ -188,6 +190,27 @@ impl std::fmt::Display for FunctionExpression {
                 .collect::<Vec<_>>()
                 .join(", "),
             self.body
+        )
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CallExpression {
+    pub function: String,
+    pub parameters: Vec<Expression>,
+}
+
+impl std::fmt::Display for CallExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}({})",
+            self.function,
+            self.parameters
+                .iter()
+                .map(|stmt| format!("{stmt}"))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     }
 }
