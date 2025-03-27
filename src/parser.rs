@@ -373,14 +373,20 @@ mod test {
                 }),
             ),
             (
-                "let some = 1 + 2;",
+                "let some = 1 + 2 * 3;",
                 ast::Node::Let(ast::LetStatement {
                     name: "some".into(),
                     value: ast::Expression::Infix(ast::InfixExpression {
                         left: ast::Expression::Integer(ast::IntegerExpression { number: 1 }).into(),
                         op: token::Token::Plus,
-                        right: ast::Expression::Integer(ast::IntegerExpression { number: 2 })
-                            .into(),
+                        right: ast::Expression::Infix(ast::InfixExpression {
+                            left: ast::Expression::Integer(ast::IntegerExpression { number: 2 })
+                                .into(),
+                            op: token::Token::Asterisk,
+                            right: ast::Expression::Integer(ast::IntegerExpression { number: 3 })
+                                .into(),
+                        })
+                        .into(),
                     }),
                 }),
             ),
