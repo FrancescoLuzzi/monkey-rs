@@ -165,9 +165,13 @@ impl<'a> Lexer<'a> {
     #[inline]
     fn read_string(&mut self, quote: char) -> Token {
         let mut buf = String::new();
+        let mut backslash_found = false;
         while let Some(ch) = self.read_char() {
-            if ch != quote {
+            if ch == '\\' && !backslash_found {
+                backslash_found = true;
+            } else if ch != quote || backslash_found {
                 buf.push(ch);
+                backslash_found = false;
             } else {
                 break;
             }
@@ -211,6 +215,7 @@ mod test {
         }
         test(' ',x,y) || false && true;
         let s_test = "test";
+        let s_test = "\"test";
         [] >= <= != ! == > < \
         "#;
         let expected_tokens = vec![
@@ -315,6 +320,12 @@ mod test {
             Token::Ident("s_test".into()),
             Token::Assign,
             Token::String("test".into()),
+            Token::Semicolon,
+            // let s_test = "\"test";
+            Token::Let,
+            Token::Ident("s_test".into()),
+            Token::Assign,
+            Token::String("\"test".into()),
             Token::Semicolon,
             // [] >= <= != ! == > < \
             Token::Lsquare,
