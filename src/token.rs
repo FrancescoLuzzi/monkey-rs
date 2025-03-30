@@ -6,9 +6,11 @@ pub enum Token {
     Illegal,
     Eof,
     // basic tokens
+    QuestionMark,
     Comma,
     Semicolon,
     Dot,
+    Colon,
     Lparen,
     Rparen,
     Lsquare,
@@ -53,9 +55,11 @@ impl std::fmt::Display for Token {
         match self {
             Token::Illegal => f.write_str("ILLEGAL"),
             Token::Eof => f.write_str("EOF"),
+            Token::QuestionMark => f.write_str("?"),
             Token::Comma => f.write_str(","),
             Token::Semicolon => f.write_str(";"),
             Token::Dot => f.write_str("."),
+            Token::Colon => f.write_str(":"),
             Token::Lparen => f.write_str("("),
             Token::Rparen => f.write_str(")"),
             Token::Lsquare => f.write_str("["),

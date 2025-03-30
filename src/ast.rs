@@ -28,6 +28,7 @@ pub enum Expression {
     Block(BlockExpression),
     Function(FunctionExpression),
     Call(CallExpression),
+    If(IfExpression),
     Infix(InfixExpression),
 }
 
@@ -43,6 +44,7 @@ impl std::fmt::Display for Expression {
             Expression::Block(block_expression) => block_expression.fmt(f),
             Expression::Function(function_expression) => function_expression.fmt(f),
             Expression::Call(call_expression) => call_expression.fmt(f),
+            Expression::If(if_expression) => if_expression.fmt(f),
             Expression::Infix(infix) => infix.fmt(f),
         }
     }
@@ -212,6 +214,27 @@ impl std::fmt::Display for CallExpression {
                 .collect::<Vec<_>>()
                 .join(", ")
         )
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IfExpression {
+    pub condition: Box<Expression>,
+    pub consequence: BlockExpression,
+    pub alternative: Option<BlockExpression>,
+}
+
+impl std::fmt::Display for IfExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(alternative) = &self.alternative {
+            write!(
+                f,
+                "if({}){{{}}}else{{{}}}",
+                self.condition, self.consequence, alternative
+            )
+        } else {
+            write!(f, "if({}){{{}}}", self.condition, self.consequence)
+        }
     }
 }
 

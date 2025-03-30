@@ -20,8 +20,11 @@ impl<'a> Lexer<'a> {
         }
         let ch = ch.unwrap();
         match ch {
+            '?' => Token::QuestionMark,
             ',' => Token::Comma,
             ';' => Token::Semicolon,
+            '.' => Token::Dot,
+            ':' => Token::Colon,
             '(' => Token::Lparen,
             ')' => Token::Rparen,
             '[' => Token::Lsquare,
@@ -46,7 +49,6 @@ impl<'a> Lexer<'a> {
             '-' => Token::Minus,
             '+' => Token::Plus,
             '*' => Token::Asterisk,
-            '.' => Token::Dot,
             '&' => {
                 if let Some('&') = self.peek_char() {
                     self.read_char();

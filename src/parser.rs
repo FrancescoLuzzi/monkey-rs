@@ -110,6 +110,7 @@ impl<'a> Parser<'a> {
             Token::Bang => self.parse_negated(token),
             Token::Function => self.parse_function(token),
             Token::Lparen => self.parse_group(token),
+            Token::If => self.parse_if(token),
             _ => None,
         }
     }
@@ -201,6 +202,53 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_if(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::If) {
+            panic!("If expected to parse_if")
+        }
+        let next_token = self.next_token()?;
+        // TODO: support ifs without parentheses
+        let condition = self.parse_group(next_token)?;
+        let next_token = self.next_token()?;
+        let consequence = if matches!(next_token, Token::Lsquirly) {
+            if let ast::Expression::Block(block) = self.parse_block(next_token)? {
+                block
+            } else {
+                panic!("we didn't expect something different from and expression Block")
+            }
+        } else {
+            ast::BlockExpression {
+                statements: vec![self.parse(next_token)?],
+            }
+        };
+        if matches!(self.lexer.peek()?, Token::Else) {
+            self.next_token()?;
+            let next_token = self.next_token()?;
+            let alternative = if matches!(next_token, Token::Lsquirly) {
+                if let ast::Expression::Block(block) = self.parse_block(next_token)? {
+                    block
+                } else {
+                    panic!("we didn't expect something different from and expression Block")
+                }
+            } else {
+                ast::BlockExpression {
+                    statements: vec![self.parse(next_token)?],
+                }
+            };
+            Some(ast::Expression::If(ast::IfExpression {
+                condition: Box::new(condition),
+                consequence,
+                alternative: Some(alternative),
+            }))
+        } else {
+            Some(ast::Expression::If(ast::IfExpression {
+                condition: Box::new(condition),
+                consequence,
+                alternative: None,
+            }))
+        }
+    }
+
     fn parse_function_params(&mut self) -> Option<Vec<ast::IdentifierExpression>> {
         let mut result: Vec<ast::IdentifierExpression> = Vec::new();
         if matches!(self.lexer.peek()?, Token::Rparen) {
@@ -261,6 +309,7 @@ impl<'a> Parser<'a> {
                 }))
             }
             Token::Lparen => self.parse_call(token, left),
+            // Token::QuestionMark => self.parse_if(),
             _ => None,
         }
     }
@@ -506,6 +555,48 @@ mod test {
                     value: "hello".into(),
                 })
             })
+        )
+    }
+
+    #[test]
+    fn parse_if() {
+        //TODO: add support for if/else statements without {} and a single line body
+        let source = "if(a > b){ return a; } else { return b;}";
+        let lex = lexer::Lexer::new(source);
+        let mut parser = Parser::new(lex);
+        let program = parser.parse_program().expect("couldn't parse let stmt");
+        assert_eq!(program.statements.len(), 1);
+        assert_eq!(
+            program.statements[0],
+            ast::Node::Expression(ast::Expression::If(ast::IfExpression {
+                condition: ast::Expression::Infix(ast::InfixExpression {
+                    left: ast::Expression::Identifier(ast::IdentifierExpression {
+                        name: "a".into()
+                    })
+                    .into(),
+                    op: token::Token::Gt,
+                    right: ast::Expression::Identifier(ast::IdentifierExpression {
+                        name: "b".into()
+                    })
+                    .into(),
+                })
+                .into(),
+                consequence: ast::BlockExpression {
+                    statements: vec![ast::Node::Return(ast::ReturnStatement {
+                        value: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "a".into()
+                        })
+                    })]
+                },
+                alternative: ast::BlockExpression {
+                    statements: vec![ast::Node::Return(ast::ReturnStatement {
+                        value: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "b".into()
+                        })
+                    })]
+                }
+                .into(),
+            }))
         )
     }
 }
