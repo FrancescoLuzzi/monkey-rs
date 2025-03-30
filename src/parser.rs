@@ -560,43 +560,136 @@ mod test {
 
     #[test]
     fn parse_if() {
-        //TODO: add support for if/else statements without {} and a single line body
-        let source = "if(a > b){ return a; } else { return b;}";
-        let lex = lexer::Lexer::new(source);
-        let mut parser = Parser::new(lex);
-        let program = parser.parse_program().expect("couldn't parse let stmt");
-        assert_eq!(program.statements.len(), 1);
-        assert_eq!(
-            program.statements[0],
-            ast::Node::Expression(ast::Expression::If(ast::IfExpression {
-                condition: ast::Expression::Infix(ast::InfixExpression {
-                    left: ast::Expression::Identifier(ast::IdentifierExpression {
-                        name: "a".into()
+        let tests: [(&str, ast::Node); 4] = [
+            (
+                "if(a > b){ return a; } else { return b;}",
+                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
+                    condition: ast::Expression::Infix(ast::InfixExpression {
+                        left: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "a".into(),
+                        })
+                        .into(),
+                        op: token::Token::Gt,
+                        right: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "b".into(),
+                        })
+                        .into(),
                     })
                     .into(),
-                    op: token::Token::Gt,
-                    right: ast::Expression::Identifier(ast::IdentifierExpression {
-                        name: "b".into()
+                    consequence: ast::BlockExpression {
+                        statements: vec![ast::Node::Return(ast::ReturnStatement {
+                            value: ast::Expression::Identifier(ast::IdentifierExpression {
+                                name: "a".into(),
+                            }),
+                        })],
+                    },
+                    alternative: ast::BlockExpression {
+                        statements: vec![ast::Node::Return(ast::ReturnStatement {
+                            value: ast::Expression::Identifier(ast::IdentifierExpression {
+                                name: "b".into(),
+                            }),
+                        })],
+                    }
+                    .into(),
+                })),
+            ),
+            (
+                "if(a > b) a else b;",
+                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
+                    condition: ast::Expression::Infix(ast::InfixExpression {
+                        left: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "a".into(),
+                        })
+                        .into(),
+                        op: token::Token::Gt,
+                        right: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "b".into(),
+                        })
+                        .into(),
                     })
                     .into(),
-                })
-                .into(),
-                consequence: ast::BlockExpression {
-                    statements: vec![ast::Node::Return(ast::ReturnStatement {
-                        value: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "a".into()
+                    consequence: ast::BlockExpression {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
+                            ast::IdentifierExpression { name: "a".into() },
+                        ))],
+                    },
+                    alternative: ast::BlockExpression {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
+                            ast::IdentifierExpression { name: "b".into() },
+                        ))],
+                    }
+                    .into(),
+                })),
+            ),
+            (
+                "if(a > b) a else { return b;};",
+                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
+                    condition: ast::Expression::Infix(ast::InfixExpression {
+                        left: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "a".into(),
                         })
-                    })]
-                },
-                alternative: ast::BlockExpression {
-                    statements: vec![ast::Node::Return(ast::ReturnStatement {
-                        value: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "b".into()
+                        .into(),
+                        op: token::Token::Gt,
+                        right: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "b".into(),
                         })
-                    })]
-                }
-                .into(),
-            }))
-        )
+                        .into(),
+                    })
+                    .into(),
+                    consequence: ast::BlockExpression {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
+                            ast::IdentifierExpression { name: "a".into() },
+                        ))],
+                    },
+                    alternative: ast::BlockExpression {
+                        statements: vec![ast::Node::Return(ast::ReturnStatement {
+                            value: ast::Expression::Identifier(ast::IdentifierExpression {
+                                name: "b".into(),
+                            }),
+                        })],
+                    }
+                    .into(),
+                })),
+            ),
+            (
+                "if(a > b) { return a; } else b;",
+                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
+                    condition: ast::Expression::Infix(ast::InfixExpression {
+                        left: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "a".into(),
+                        })
+                        .into(),
+                        op: token::Token::Gt,
+                        right: ast::Expression::Identifier(ast::IdentifierExpression {
+                            name: "b".into(),
+                        })
+                        .into(),
+                    })
+                    .into(),
+                    consequence: ast::BlockExpression {
+                        statements: vec![ast::Node::Return(ast::ReturnStatement {
+                            value: ast::Expression::Identifier(ast::IdentifierExpression {
+                                name: "a".into(),
+                            }),
+                        })],
+                    },
+                    alternative: ast::BlockExpression {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
+                            ast::IdentifierExpression { name: "b".into() },
+                        ))],
+                    }
+                    .into(),
+                })),
+            ),
+        ];
+        for (source, node) in tests {
+            let lex = lexer::Lexer::new(source);
+            let mut parser = Parser::new(lex);
+            let program = parser
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse let stmt: {source}"));
+            assert_eq!(program.statements.len(), 1);
+            assert_eq!(program.statements[0], node)
+        }
     }
 }
