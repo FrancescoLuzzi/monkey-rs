@@ -107,6 +107,7 @@ impl<'a> Parser<'a> {
             Token::Floating(_) => self.parse_float(token),
             Token::String(_) => self.parse_string(token),
             Token::Char(_) => self.parse_char(token),
+            Token::Minus => self.parse_minus(token),
             Token::Bang => self.parse_negated(token),
             Token::Function => self.parse_function(token),
             Token::Lparen => self.parse_group(token),
@@ -157,6 +158,17 @@ impl<'a> Parser<'a> {
         } else {
             panic!("Char expected to parse_char")
         }
+    }
+
+    fn parse_minus(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::Minus) {
+            panic!("Minus expected to parse_minus")
+        }
+
+        let next_token = self.next_token()?;
+        Some(ast::Expression::Minus(ast::MinusExpression {
+            expr: Box::new(self.parse_expr(next_token, Precedence::Prefix)?),
+        }))
     }
 
     fn parse_negated(&mut self, token: Token) -> Option<ast::Expression> {
@@ -497,7 +509,7 @@ mod test {
                 }),
             ),
             (
-                "let res = test(a, (b+1)*2 );",
+                "let res = test(a, -(b+1)*2 );",
                 ast::Node::Let(ast::LetStatement {
                     name: "res".into(),
                     value: ast::Expression::Call(ast::CallExpression {
@@ -507,14 +519,17 @@ mod test {
                                 name: "a".into(),
                             }),
                             ast::Expression::Infix(ast::InfixExpression {
-                                left: ast::Expression::Infix(ast::InfixExpression {
-                                    left: ast::Expression::Identifier(ast::IdentifierExpression {
-                                        name: "b".into(),
-                                    })
-                                    .into(),
-                                    op: token::Token::Plus,
-                                    right: ast::Expression::Integer(ast::IntegerExpression {
-                                        number: 1,
+                                left: ast::Expression::Minus(ast::MinusExpression {
+                                    expr: ast::Expression::Infix(ast::InfixExpression {
+                                        left: ast::Expression::Identifier(
+                                            ast::IdentifierExpression { name: "b".into() },
+                                        )
+                                        .into(),
+                                        op: token::Token::Plus,
+                                        right: ast::Expression::Integer(ast::IntegerExpression {
+                                            number: 1,
+                                        })
+                                        .into(),
                                     })
                                     .into(),
                                 })

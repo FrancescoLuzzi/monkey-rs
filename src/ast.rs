@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use crate::token::Token;
 
 #[derive(Debug, PartialEq)]
@@ -25,6 +27,7 @@ pub enum Expression {
     String(StringExpression),
     Char(CharExpression),
     Negated(NegatedExpression),
+    Minus(MinusExpression),
     Block(BlockExpression),
     Function(FunctionExpression),
     Call(CallExpression),
@@ -41,6 +44,7 @@ impl std::fmt::Display for Expression {
             Expression::String(string_expression) => string_expression.fmt(f),
             Expression::Char(char_expression) => char_expression.fmt(f),
             Expression::Negated(negated_expression) => negated_expression.fmt(f),
+            Expression::Minus(minus_expression) => minus_expression.fmt(f),
             Expression::Block(block_expression) => block_expression.fmt(f),
             Expression::Function(function_expression) => function_expression.fmt(f),
             Expression::Call(call_expression) => call_expression.fmt(f),
@@ -149,6 +153,17 @@ pub struct NegatedExpression {
 impl std::fmt::Display for NegatedExpression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "!{}", self.expr)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct MinusExpression {
+    pub expr: Box<Expression>,
+}
+
+impl std::fmt::Display for MinusExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "-{}", self.expr)
     }
 }
 
