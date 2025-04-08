@@ -1,10 +1,14 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::objects::Object;
 
 #[derive(Default)]
 pub struct Environment {
-    env: BTreeMap<String, Object>,
+    parent: Option<Arc<RwLock<BTreeMap<String, Object>>>>,
+    current: Arc<RwLock<BTreeMap<String, Object>>>,
 }
 
 impl Environment {
@@ -13,10 +17,29 @@ impl Environment {
     }
 
     pub fn set(&mut self, name: &str, value: Object) {
-        self.env.insert(name.into(), value);
+        let mut locked_curr = self.current.write().expect("Environment lock is poisoned");
+        if locked_curr.contains_key(name) || self.parent.is_none() {
+            locked_curr.insert(name.into(), value);
+        } else if let Some(parent) = self.parent.as_mut() {
+            parent
+                .write()
+                .expect("Environment lock is poisoned")
+                .insert(name.into(), value);
+        }
     }
 
-    pub fn get(&self, name: &str) -> Option<&Object> {
-        self.env.get(name)
+    pub fn get(&self, name: &str) -> Option<Object> {
+        let locked_curr = self.current.read().expect("Environment lock is poisoned");
+        if locked_curr.contains_key(name) {
+            locked_curr.get(name).cloned()
+        } else if let Some(parent) = self.parent.as_ref() {
+            parent
+                .read()
+                .expect("Environment lock is poisoned")
+                .get(name)
+                .cloned()
+        } else {
+            locked_curr.get(name).cloned()
+        }
     }
 }

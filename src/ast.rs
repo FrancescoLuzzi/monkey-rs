@@ -1,8 +1,6 @@
-use std::error::Error;
-
 use crate::token::Token;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     Let(LetStatement),
     Return(ReturnStatement),
@@ -19,7 +17,7 @@ impl std::fmt::Display for Node {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Identifier(IdentifierExpression),
     Integer(IntegerExpression),
@@ -54,7 +52,7 @@ impl std::fmt::Display for Expression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct LetStatement {
     pub name: String,
     pub value: Expression,
@@ -66,7 +64,7 @@ impl std::fmt::Display for LetStatement {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ReturnStatement {
     pub value: Expression,
 }
@@ -77,7 +75,7 @@ impl std::fmt::Display for ReturnStatement {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IdentifierExpression {
     pub name: String,
 }
@@ -88,7 +86,7 @@ impl std::fmt::Display for IdentifierExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IntegerExpression {
     pub number: i64,
 }
@@ -99,7 +97,7 @@ impl std::fmt::Display for IntegerExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FloatExpression {
     pub number: f64,
 }
@@ -110,7 +108,7 @@ impl std::fmt::Display for FloatExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct StringExpression {
     pub value: String,
 }
@@ -121,7 +119,7 @@ impl std::fmt::Display for StringExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CharExpression {
     pub value: char,
 }
@@ -132,7 +130,7 @@ impl std::fmt::Display for CharExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct InfixExpression {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
@@ -145,7 +143,7 @@ impl std::fmt::Display for InfixExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NegatedExpression {
     pub expr: Box<Expression>,
 }
@@ -156,7 +154,7 @@ impl std::fmt::Display for NegatedExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MinusExpression {
     pub expr: Box<Expression>,
 }
@@ -167,7 +165,7 @@ impl std::fmt::Display for MinusExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BlockExpression {
     pub statements: Vec<Node>,
 }
@@ -186,7 +184,7 @@ impl std::fmt::Display for BlockExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunctionExpression {
     // TODO: maybe add a bit to distinguish between
     // let test = fn(){}
@@ -211,7 +209,7 @@ impl std::fmt::Display for FunctionExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CallExpression {
     pub function: String,
     pub parameters: Vec<Expression>,
@@ -232,7 +230,7 @@ impl std::fmt::Display for CallExpression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IfExpression {
     pub condition: Box<Expression>,
     pub consequence: BlockExpression,
@@ -253,7 +251,7 @@ impl std::fmt::Display for IfExpression {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Default, Debug, PartialEq)]
 pub struct Program {
     pub statements: Vec<Node>,
 }
