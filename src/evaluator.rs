@@ -1,4 +1,4 @@
-use crate::{ast, environment::Environment, objects::Object};
+use crate::{ast, environment::Environment, objects::Object, token};
 
 pub fn eval_program(env: &mut Environment, program: &ast::Program) -> Option<Object> {
     let mut result = Object::Null;
@@ -13,88 +13,69 @@ pub fn eval_program(env: &mut Environment, program: &ast::Program) -> Option<Obj
 
 pub fn eval_node(env: &mut Environment, node: &ast::Node) -> Option<Object> {
     match node {
-        ast::Node::Let(let_statement) => {
-            let value = eval_expr(env, &let_statement.value)?;
-            env.set(&let_statement.name, value);
+        ast::Node::Let { name, value } => {
+            let value = eval_expr(env, value)?;
+            env.set(name, value);
             Some(Object::Null)
         }
-        ast::Node::Return(return_statement) => eval_expr(env, &return_statement.value),
+        ast::Node::Return { value } => eval_expr(env, &value),
         ast::Node::Expression(expression) => eval_expr(env, expression),
     }
 }
 
 pub fn eval_expr(env: &mut Environment, expr: &ast::Expression) -> Option<Object> {
     match expr {
-        ast::Expression::Identifier(identifier_expression) => env.get(&identifier_expression.name),
-        ast::Expression::Integer(integer_expression) => {
-            Some(Object::Integer(integer_expression.number))
-        }
-        ast::Expression::Float(float_expression) => Some(Object::Float(float_expression.number)),
-        ast::Expression::String(string_expression) => {
-            Some(Object::String(string_expression.value.clone()))
-        }
-        ast::Expression::Char(char_expression) => Some(Object::Char(char_expression.value)),
-        ast::Expression::Negated(negated_expression) => {
-            eval_negation(env, &negated_expression.expr)
-        }
-        ast::Expression::Minus(minus_expression) => eval_minus(env, minus_expression),
-        ast::Expression::Block(block_expression) => todo!(),
-        ast::Expression::Function(function_expression) => todo!(),
-        ast::Expression::Call(call_expression) => todo!(),
-        ast::Expression::If(if_expression) => todo!(),
-        ast::Expression::Infix(infix_expression) => eval_infix(env, infix_expression),
+        ast::Expression::Identifier { name } => env.get(name),
+        ast::Expression::Integer { value } => Some(Object::Integer(*value)),
+        ast::Expression::Float { value } => Some(Object::Float(*value)),
+        ast::Expression::String { value } => Some(Object::String(value.clone())),
+        ast::Expression::Char { value } => Some(Object::Char(*value)),
+        ast::Expression::Negated { value } => eval_negation(env, value),
+        ast::Expression::Minus { value } => eval_minus(env, value),
+        ast::Expression::Block { value } => todo!(),
+        ast::Expression::Function { parameters, body } => todo!(),
+        ast::Expression::Call {
+            function,
+            parameters,
+        } => todo!(),
+        ast::Expression::If {
+            condition,
+            consequence,
+            alternative,
+        } => todo!(),
+        ast::Expression::Infix { left, right, op } => eval_infix(env, left, op, right),
     }
 }
 
 fn eval_negation(env: &mut Environment, expr: &ast::Expression) -> Option<Object> {
-    match expr {
-        ast::Expression::Identifier(identifier_expression) => env.get(&identifier_expression.name),
-        ast::Expression::Integer(integer_expression) => {
-            Some(Object::Bool(integer_expression.number != 0))
-        }
-        ast::Expression::Float(float_expression) => {
-            Some(Object::Bool(float_expression.number != 0.0))
-        }
-        ast::Expression::String(string_expression) => Some(Object::Bool(
-            string_expression.value.chars().all(char::is_whitespace),
-        )),
-        ast::Expression::Char(char_expression) => Some(Object::Bool(char_expression.value != '\0')),
-        ast::Expression::Negated(negated_expression) => {
-            if let Object::Bool(value) = eval_negation(env, &negated_expression.expr)? {
-                Some(Object::Bool(!value))
-            } else {
-                panic!("negate_expr returned something that is not an Object::Bool")
-            }
-        }
-        ast::Expression::Block(block_expression) => todo!(),
-        ast::Expression::Call(call_expression) => todo!(),
-        ast::Expression::Infix(infix_expression) => eval_infix(env, infix_expression),
+    match eval_expr(env, expr)? {
+        Object::Null => Some(Object::Bool(true)),
+        Object::Bool(b) => Some(Object::Bool(!b)),
+        Object::Integer(n) => Some(Object::Bool(n != 0)),
+        Object::Float(n) => Some(Object::Bool(n != 0.0)),
+        Object::String(s) => Some(Object::Bool(s.chars().all(char::is_whitespace))),
+        Object::Char(c) => Some(Object::Bool(c != '\0' && c != ' ')),
+        Object::Error(_) => Some(Object::Bool(true)),
+    }
+}
+
+fn eval_minus(env: &mut Environment, expr: &ast::Expression) -> Option<Object> {
+    match eval_expr(env, expr)? {
+        Object::Bool(b) => Some(Object::Integer(-(b as i64))),
+        Object::Integer(n) => Some(Object::Integer(-n)),
+        Object::Float(n) => Some(Object::Float(-n)),
         _ => None,
     }
 }
 
-fn eval_minus(env: &mut Environment, expr: &ast::MinusExpression) -> Option<Object> {
-    match expr.expr.as_ref() {
-        ast::Expression::Integer(integer_expression) => {
-            Some(Object::Integer(-integer_expression.number))
-        }
-        ast::Expression::Float(float_expression) => Some(Object::Float(-float_expression.number)),
-        ast::Expression::Minus(minus_expression) => eval_expr(env, minus_expression.expr.as_ref()),
-        ast::Expression::Identifier(identifier_expression) => {
-            let val = env.get(&identifier_expression.name)?;
-            match val {
-                Object::Integer(n) => Some(Object::Integer(-n)),
-                Object::Float(n) => Some(Object::Float(n)),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-fn eval_infix(env: &mut Environment, infix_expression: &ast::InfixExpression) -> Option<Object> {
-    match infix_expression.op {
-        crate::token::Token::Plus => eval_infix_sum(env, infix_expression),
+fn eval_infix(
+    env: &mut Environment,
+    left: &ast::Expression,
+    op: &token::Token,
+    right: &ast::Expression,
+) -> Option<Object> {
+    match op {
+        crate::token::Token::Plus => eval_infix_sum(env, left, right),
         crate::token::Token::Minus => todo!(),
         crate::token::Token::Slash => todo!(),
         crate::token::Token::And => todo!(),
@@ -112,9 +93,13 @@ fn eval_infix(env: &mut Environment, infix_expression: &ast::InfixExpression) ->
 }
 
 #[inline]
-fn eval_infix_sum(env: &mut Environment, infix: &ast::InfixExpression) -> Option<Object> {
-    let left = eval_expr(env, &infix.left)?;
-    let right = eval_expr(env, &infix.right)?;
+fn eval_infix_sum(
+    env: &mut Environment,
+    left: &ast::Expression,
+    right: &ast::Expression,
+) -> Option<Object> {
+    let left = eval_expr(env, left)?;
+    let right = eval_expr(env, right)?;
     match (&left, &right) {
         (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n + m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {

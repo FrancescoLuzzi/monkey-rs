@@ -77,19 +77,19 @@ impl<'a> Parser<'a> {
 
         let token = self.next_token()?;
 
-        Some(ast::Node::Let(ast::LetStatement {
+        Some(ast::Node::Let {
             name: ident,
             value: self.parse_expr(token, Precedence::Min)?,
-        }))
+        })
     }
 
     fn parse_return_stmt(&mut self, token: Token) -> Option<ast::Node> {
         assert_eq!(token, Token::Return);
         let token = self.next_token()?;
 
-        Some(ast::Node::Return(ast::ReturnStatement {
+        Some(ast::Node::Return {
             value: self.parse_expr(token, Precedence::Min)?,
-        }))
+        })
     }
 
     fn parse_expr(&mut self, token: Token, precedence: Precedence) -> Option<ast::Expression> {
@@ -112,15 +112,14 @@ impl<'a> Parser<'a> {
             Token::Function => self.parse_function(token),
             Token::Lparen => self.parse_group(token),
             Token::If => self.parse_if(token),
+            Token::Lsquirly => todo!(), // BlockExpression
             _ => None,
         }
     }
 
     fn parse_ident(&mut self, token: Token) -> Option<ast::Expression> {
         if let Token::Ident(ident) = token {
-            Some(ast::Expression::Identifier(ast::IdentifierExpression {
-                name: ident,
-            }))
+            Some(ast::Expression::Identifier { name: ident })
         } else {
             panic!("Ident expected to parse_ident")
         }
@@ -128,9 +127,7 @@ impl<'a> Parser<'a> {
 
     fn parse_int(&mut self, token: Token) -> Option<ast::Expression> {
         if let Token::Integer(num) = token {
-            Some(ast::Expression::Integer(ast::IntegerExpression {
-                number: num,
-            }))
+            Some(ast::Expression::Integer { value: num })
         } else {
             panic!("Integer expected to parse_int")
         }
@@ -138,7 +135,7 @@ impl<'a> Parser<'a> {
 
     fn parse_float(&mut self, token: Token) -> Option<ast::Expression> {
         if let Token::Floating(num) = token {
-            Some(ast::Expression::Float(ast::FloatExpression { number: num }))
+            Some(ast::Expression::Float { value: num })
         } else {
             panic!("Floating expected to parse_float")
         }
@@ -146,7 +143,7 @@ impl<'a> Parser<'a> {
 
     fn parse_string(&mut self, token: Token) -> Option<ast::Expression> {
         if let Token::String(value) = token {
-            Some(ast::Expression::String(ast::StringExpression { value }))
+            Some(ast::Expression::String { value })
         } else {
             panic!("String expected to parse_string")
         }
@@ -154,7 +151,7 @@ impl<'a> Parser<'a> {
 
     fn parse_char(&mut self, token: Token) -> Option<ast::Expression> {
         if let Token::Char(value) = token {
-            Some(ast::Expression::Char(ast::CharExpression { value }))
+            Some(ast::Expression::Char { value })
         } else {
             panic!("Char expected to parse_char")
         }
@@ -166,9 +163,9 @@ impl<'a> Parser<'a> {
         }
 
         let next_token = self.next_token()?;
-        Some(ast::Expression::Minus(ast::MinusExpression {
-            expr: Box::new(self.parse_expr(next_token, Precedence::Prefix)?),
-        }))
+        Some(ast::Expression::Minus {
+            value: Box::new(self.parse_expr(next_token, Precedence::Prefix)?),
+        })
     }
 
     fn parse_negated(&mut self, token: Token) -> Option<ast::Expression> {
@@ -177,9 +174,9 @@ impl<'a> Parser<'a> {
         }
 
         let next_token = self.next_token()?;
-        Some(ast::Expression::Negated(ast::NegatedExpression {
-            expr: Box::new(self.parse_expr(next_token, Precedence::Prefix)?),
-        }))
+        Some(ast::Expression::Negated {
+            value: Box::new(self.parse_expr(next_token, Precedence::Prefix)?),
+        })
     }
 
     fn parse_group(&mut self, token: Token) -> Option<ast::Expression> {
@@ -204,14 +201,10 @@ impl<'a> Parser<'a> {
         let params = self.parse_function_params()?;
 
         let next_token = self.next_token()?;
-        if let ast::Expression::Block(block) = self.parse_block(next_token)? {
-            Some(ast::Expression::Function(ast::FunctionExpression {
-                parameters: params,
-                body: block,
-            }))
-        } else {
-            panic!("parse_block returne something that wasnt a block")
-        }
+        Some(ast::Expression::Function {
+            parameters: params,
+            body: self.parse_block(next_token)?,
+        })
     }
 
     fn parse_if(&mut self, token: Token) -> Option<ast::Expression> {
@@ -223,13 +216,9 @@ impl<'a> Parser<'a> {
         let condition = self.parse_group(next_token)?;
         let next_token = self.next_token()?;
         let consequence = if matches!(next_token, Token::Lsquirly) {
-            if let ast::Expression::Block(block) = self.parse_block(next_token)? {
-                block
-            } else {
-                panic!("we didn't expect something different from and expression Block")
-            }
+            self.parse_block(next_token)?
         } else {
-            ast::BlockExpression {
+            ast::Block {
                 statements: vec![self.parse(next_token)?],
             }
         };
@@ -237,39 +226,35 @@ impl<'a> Parser<'a> {
             self.next_token()?;
             let next_token = self.next_token()?;
             let alternative = if matches!(next_token, Token::Lsquirly) {
-                if let ast::Expression::Block(block) = self.parse_block(next_token)? {
-                    block
-                } else {
-                    panic!("we didn't expect something different from and expression Block")
-                }
+                self.parse_block(next_token)?
             } else {
-                ast::BlockExpression {
+                ast::Block {
                     statements: vec![self.parse(next_token)?],
                 }
             };
-            Some(ast::Expression::If(ast::IfExpression {
+            Some(ast::Expression::If {
                 condition: Box::new(condition),
                 consequence,
                 alternative: Some(alternative),
-            }))
+            })
         } else {
-            Some(ast::Expression::If(ast::IfExpression {
+            Some(ast::Expression::If {
                 condition: Box::new(condition),
                 consequence,
                 alternative: None,
-            }))
+            })
         }
     }
 
-    fn parse_function_params(&mut self) -> Option<Vec<ast::IdentifierExpression>> {
-        let mut result: Vec<ast::IdentifierExpression> = Vec::new();
+    fn parse_function_params(&mut self) -> Option<Vec<String>> {
+        let mut result: Vec<String> = Vec::new();
         if matches!(self.lexer.peek()?, Token::Rparen) {
             self.next_token()?;
             return Some(result);
         }
         loop {
             if let Token::Ident(ident) = self.next_token()? {
-                result.push(ast::IdentifierExpression { name: ident });
+                result.push(ident);
             } else {
                 return None;
             }
@@ -283,7 +268,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_block(&mut self, token: Token) -> Option<ast::Expression> {
+    fn parse_block(&mut self, token: Token) -> Option<ast::Block> {
         if !matches!(token, Token::Lsquirly) {
             panic!("Lsquirly expected to parse_block")
         }
@@ -293,7 +278,7 @@ impl<'a> Parser<'a> {
             statements.push(self.parse(next_token)?);
             next_token = self.next_token()?;
         }
-        Some(ast::Expression::Block(ast::BlockExpression { statements }))
+        Some(ast::Block { statements })
     }
 
     fn parse_expr_infix(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
@@ -314,11 +299,11 @@ impl<'a> Parser<'a> {
             | Token::BitAnd => {
                 let precedence = get_token_precedence(&token);
                 let next_token = self.next_token()?;
-                Some(ast::Expression::Infix(ast::InfixExpression {
+                Some(ast::Expression::Infix {
                     left: Box::new(left),
                     op: token.clone(),
                     right: Box::new(self.parse_expr(next_token, precedence)?),
-                }))
+                })
             }
             Token::Lparen => self.parse_call(token, left),
             // Token::QuestionMark => self.parse_if(),
@@ -330,8 +315,8 @@ impl<'a> Parser<'a> {
         if !matches!(token, Token::Lparen) {
             panic!("Lparen expected to parse_call")
         }
-        let function = if let ast::Expression::Identifier(func_name) = left {
-            func_name.name
+        let function = if let ast::Expression::Identifier { name } = left {
+            name
         } else {
             return None;
         };
@@ -339,10 +324,10 @@ impl<'a> Parser<'a> {
         let mut parameters = Vec::new();
         if matches!(self.lexer.peek()?, Token::Rparen) {
             self.next_token()?;
-            return Some(ast::Expression::Call(ast::CallExpression {
+            return Some(ast::Expression::Call {
                 function,
                 parameters,
-            }));
+            });
         }
 
         loop {
@@ -353,10 +338,10 @@ impl<'a> Parser<'a> {
             }
         }
         match self.next_token()? {
-            Token::Rparen => Some(ast::Expression::Call(ast::CallExpression {
+            Token::Rparen => Some(ast::Expression::Call {
                 function,
                 parameters,
-            })),
+            }),
 
             _ => None,
         }
@@ -403,146 +388,125 @@ mod test {
         let tests: [(&str, ast::Node); 9] = [
             (
                 "let some = 3;",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "some".into(),
-                    value: ast::Expression::Integer(ast::IntegerExpression { number: 3 }),
-                }),
+                    value: ast::Expression::Integer { value: 3 },
+                },
             ),
             (
                 "let some = \"some\";",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "some".into(),
-                    value: ast::Expression::String(ast::StringExpression {
+                    value: ast::Expression::String {
                         value: "some".into(),
-                    }),
-                }),
+                    },
+                },
             ),
             (
                 "let some = 's';",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "some".into(),
-                    value: ast::Expression::Char(ast::CharExpression { value: 's' }),
-                }),
+                    value: ast::Expression::Char { value: 's' },
+                },
             ),
             (
                 "let some = test;",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "some".into(),
-                    value: ast::Expression::Identifier(ast::IdentifierExpression {
+                    value: ast::Expression::Identifier {
                         name: "test".into(),
-                    }),
-                }),
+                    },
+                },
             ),
             (
                 "let some = 1 + 2 * 3;",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "some".into(),
-                    value: ast::Expression::Infix(ast::InfixExpression {
-                        left: ast::Expression::Integer(ast::IntegerExpression { number: 1 }).into(),
+                    value: ast::Expression::Infix {
+                        left: ast::Expression::Integer { value: 1 }.into(),
                         op: token::Token::Plus,
-                        right: ast::Expression::Infix(ast::InfixExpression {
-                            left: ast::Expression::Integer(ast::IntegerExpression { number: 2 })
-                                .into(),
+                        right: ast::Expression::Infix {
+                            left: ast::Expression::Integer { value: 2 }.into(),
                             op: token::Token::Asterisk,
-                            right: ast::Expression::Integer(ast::IntegerExpression { number: 3 })
-                                .into(),
-                        })
+                            right: ast::Expression::Integer { value: 3 }.into(),
+                        }
                         .into(),
-                    }),
-                }),
+                    },
+                },
             ),
             (
                 "let some = fn(){};",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "some".into(),
-                    value: ast::Expression::Function(ast::FunctionExpression {
+                    value: ast::Expression::Function {
                         parameters: Vec::new(),
-                        body: ast::BlockExpression {
+                        body: ast::Block {
                             statements: Vec::new(),
                         },
-                    }),
-                }),
+                    },
+                },
             ),
             (
                 "let some = fn(a,b){let x = a+b; return x;};",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "some".into(),
-                    value: ast::Expression::Function(ast::FunctionExpression {
-                        parameters: vec![
-                            ast::IdentifierExpression { name: "a".into() },
-                            ast::IdentifierExpression { name: "b".into() },
-                        ],
-                        body: ast::BlockExpression {
+                    value: ast::Expression::Function {
+                        parameters: vec!["a".into(), "b".into()],
+                        body: ast::Block {
                             statements: vec![
-                                ast::Node::Let(ast::LetStatement {
+                                ast::Node::Let {
                                     name: "x".into(),
-                                    value: ast::Expression::Infix(ast::InfixExpression {
-                                        left: ast::Expression::Identifier(
-                                            ast::IdentifierExpression { name: "a".into() },
-                                        )
-                                        .into(),
+                                    value: ast::Expression::Infix {
+                                        left: ast::Expression::Identifier { name: "a".into() }
+                                            .into(),
                                         op: token::Token::Plus,
-                                        right: ast::Expression::Identifier(
-                                            ast::IdentifierExpression { name: "b".into() },
-                                        )
-                                        .into(),
-                                    }),
-                                }),
-                                ast::Node::Return(ast::ReturnStatement {
-                                    value: ast::Expression::Identifier(ast::IdentifierExpression {
-                                        name: "x".into(),
-                                    }),
-                                }),
+                                        right: ast::Expression::Identifier { name: "b".into() }
+                                            .into(),
+                                    },
+                                },
+                                ast::Node::Return {
+                                    value: ast::Expression::Identifier { name: "x".into() },
+                                },
                             ],
                         },
-                    }),
-                }),
+                    },
+                },
             ),
             (
                 "let res = test();",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "res".into(),
-                    value: ast::Expression::Call(ast::CallExpression {
+                    value: ast::Expression::Call {
                         function: "test".into(),
                         parameters: Vec::new(),
-                    }),
-                }),
+                    },
+                },
             ),
             (
                 "let res = test(a, -(b+1)*2 );",
-                ast::Node::Let(ast::LetStatement {
+                ast::Node::Let {
                     name: "res".into(),
-                    value: ast::Expression::Call(ast::CallExpression {
+                    value: ast::Expression::Call {
                         function: "test".into(),
                         parameters: vec![
-                            ast::Expression::Identifier(ast::IdentifierExpression {
-                                name: "a".into(),
-                            }),
-                            ast::Expression::Infix(ast::InfixExpression {
-                                left: ast::Expression::Minus(ast::MinusExpression {
-                                    expr: ast::Expression::Infix(ast::InfixExpression {
-                                        left: ast::Expression::Identifier(
-                                            ast::IdentifierExpression { name: "b".into() },
-                                        )
-                                        .into(),
+                            ast::Expression::Identifier { name: "a".into() },
+                            ast::Expression::Infix {
+                                left: ast::Expression::Minus {
+                                    value: ast::Expression::Infix {
+                                        left: ast::Expression::Identifier { name: "b".into() }
+                                            .into(),
                                         op: token::Token::Plus,
-                                        right: ast::Expression::Integer(ast::IntegerExpression {
-                                            number: 1,
-                                        })
-                                        .into(),
-                                    })
+                                        right: ast::Expression::Integer { value: 1 }.into(),
+                                    }
                                     .into(),
-                                })
+                                }
                                 .into(),
                                 op: token::Token::Asterisk,
-                                right: ast::Expression::Integer(ast::IntegerExpression {
-                                    number: 2,
-                                })
-                                .into(),
-                            }),
+                                right: ast::Expression::Integer { value: 2 }.into(),
+                            },
                         ],
-                    }),
-                }),
+                    },
+                },
             ),
         ];
         for (source, node) in tests {
@@ -565,11 +529,11 @@ mod test {
         assert_eq!(program.statements.len(), 1);
         assert_eq!(
             program.statements[0],
-            ast::Node::Return(ast::ReturnStatement {
-                value: ast::Expression::String(ast::StringExpression {
+            ast::Node::Return {
+                value: ast::Expression::String {
                     value: "hello".into(),
-                })
-            })
+                }
+            }
         )
     }
 
@@ -578,123 +542,91 @@ mod test {
         let tests: [(&str, ast::Node); 4] = [
             (
                 "if(a > b){ return a; } else { return b;}",
-                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
-                    condition: ast::Expression::Infix(ast::InfixExpression {
-                        left: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "a".into(),
-                        })
-                        .into(),
+                ast::Node::Expression(ast::Expression::If {
+                    condition: ast::Expression::Infix {
+                        left: ast::Expression::Identifier { name: "a".into() }.into(),
                         op: token::Token::Gt,
-                        right: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "b".into(),
-                        })
-                        .into(),
-                    })
-                    .into(),
-                    consequence: ast::BlockExpression {
-                        statements: vec![ast::Node::Return(ast::ReturnStatement {
-                            value: ast::Expression::Identifier(ast::IdentifierExpression {
-                                name: "a".into(),
-                            }),
-                        })],
-                    },
-                    alternative: ast::BlockExpression {
-                        statements: vec![ast::Node::Return(ast::ReturnStatement {
-                            value: ast::Expression::Identifier(ast::IdentifierExpression {
-                                name: "b".into(),
-                            }),
-                        })],
+                        right: ast::Expression::Identifier { name: "b".into() }.into(),
                     }
                     .into(),
-                })),
+                    consequence: ast::Block {
+                        statements: vec![ast::Node::Return {
+                            value: ast::Expression::Identifier { name: "a".into() },
+                        }],
+                    },
+                    alternative: ast::Block {
+                        statements: vec![ast::Node::Return {
+                            value: ast::Expression::Identifier { name: "b".into() },
+                        }],
+                    }
+                    .into(),
+                }),
             ),
             (
                 "if(a > b) a else b;",
-                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
-                    condition: ast::Expression::Infix(ast::InfixExpression {
-                        left: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "a".into(),
-                        })
-                        .into(),
+                ast::Node::Expression(ast::Expression::If {
+                    condition: ast::Expression::Infix {
+                        left: ast::Expression::Identifier { name: "a".into() }.into(),
                         op: token::Token::Gt,
-                        right: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "b".into(),
-                        })
-                        .into(),
-                    })
-                    .into(),
-                    consequence: ast::BlockExpression {
-                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
-                            ast::IdentifierExpression { name: "a".into() },
-                        ))],
-                    },
-                    alternative: ast::BlockExpression {
-                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
-                            ast::IdentifierExpression { name: "b".into() },
-                        ))],
+                        right: ast::Expression::Identifier { name: "b".into() }.into(),
                     }
                     .into(),
-                })),
+                    consequence: ast::Block {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier {
+                            name: "a".into(),
+                        })],
+                    },
+                    alternative: ast::Block {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier {
+                            name: "b".into(),
+                        })],
+                    }
+                    .into(),
+                }),
             ),
             (
                 "if(a > b) a else { return b;};",
-                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
-                    condition: ast::Expression::Infix(ast::InfixExpression {
-                        left: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "a".into(),
-                        })
-                        .into(),
+                ast::Node::Expression(ast::Expression::If {
+                    condition: ast::Expression::Infix {
+                        left: ast::Expression::Identifier { name: "a".into() }.into(),
                         op: token::Token::Gt,
-                        right: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "b".into(),
-                        })
-                        .into(),
-                    })
-                    .into(),
-                    consequence: ast::BlockExpression {
-                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
-                            ast::IdentifierExpression { name: "a".into() },
-                        ))],
-                    },
-                    alternative: ast::BlockExpression {
-                        statements: vec![ast::Node::Return(ast::ReturnStatement {
-                            value: ast::Expression::Identifier(ast::IdentifierExpression {
-                                name: "b".into(),
-                            }),
-                        })],
+                        right: ast::Expression::Identifier { name: "b".into() }.into(),
                     }
                     .into(),
-                })),
+                    consequence: ast::Block {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier {
+                            name: "a".into(),
+                        })],
+                    },
+                    alternative: ast::Block {
+                        statements: vec![ast::Node::Return {
+                            value: ast::Expression::Identifier { name: "b".into() },
+                        }],
+                    }
+                    .into(),
+                }),
             ),
             (
                 "if(a > b) { return a; } else b;",
-                ast::Node::Expression(ast::Expression::If(ast::IfExpression {
-                    condition: ast::Expression::Infix(ast::InfixExpression {
-                        left: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "a".into(),
-                        })
-                        .into(),
+                ast::Node::Expression(ast::Expression::If {
+                    condition: ast::Expression::Infix {
+                        left: ast::Expression::Identifier { name: "a".into() }.into(),
                         op: token::Token::Gt,
-                        right: ast::Expression::Identifier(ast::IdentifierExpression {
-                            name: "b".into(),
-                        })
-                        .into(),
-                    })
-                    .into(),
-                    consequence: ast::BlockExpression {
-                        statements: vec![ast::Node::Return(ast::ReturnStatement {
-                            value: ast::Expression::Identifier(ast::IdentifierExpression {
-                                name: "a".into(),
-                            }),
-                        })],
-                    },
-                    alternative: ast::BlockExpression {
-                        statements: vec![ast::Node::Expression(ast::Expression::Identifier(
-                            ast::IdentifierExpression { name: "b".into() },
-                        ))],
+                        right: ast::Expression::Identifier { name: "b".into() }.into(),
                     }
                     .into(),
-                })),
+                    consequence: ast::Block {
+                        statements: vec![ast::Node::Return {
+                            value: ast::Expression::Identifier { name: "a".into() },
+                        }],
+                    },
+                    alternative: ast::Block {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier {
+                            name: "b".into(),
+                        })],
+                    }
+                    .into(),
+                }),
             ),
         ];
         for (source, node) in tests {
