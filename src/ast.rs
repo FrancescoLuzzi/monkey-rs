@@ -31,6 +31,9 @@ pub enum Expression {
     String {
         value: String,
     },
+    Bool {
+        value: bool,
+    },
     Char {
         value: char,
     },
@@ -70,6 +73,7 @@ impl std::fmt::Display for Expression {
             Expression::Integer { value } => value.fmt(f),
             Expression::Float { value } => value.fmt(f),
             Expression::String { value } => value.fmt(f),
+            Expression::Bool { value } => value.fmt(f),
             Expression::Char { value } => value.fmt(f),
             Expression::Block { value } => value.fmt(f),
             Expression::Negated { value } => f.write_fmt(format_args!("!{}", value)),

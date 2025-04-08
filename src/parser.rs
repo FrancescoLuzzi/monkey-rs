@@ -106,6 +106,9 @@ impl<'a> Parser<'a> {
             Token::Integer(_) => self.parse_int(token),
             Token::Floating(_) => self.parse_float(token),
             Token::String(_) => self.parse_string(token),
+            Token::True | Token::False => Some(ast::Expression::Bool {
+                value: token == Token::True,
+            }),
             Token::Char(_) => self.parse_char(token),
             Token::Minus => self.parse_minus(token),
             Token::Bang => self.parse_negated(token),
@@ -222,7 +225,7 @@ impl<'a> Parser<'a> {
                 statements: vec![self.parse(next_token)?],
             }
         };
-        if matches!(self.lexer.peek()?, Token::Else) {
+        if matches!(self.lexer.peek(), Some(Token::Else)) {
             self.next_token()?;
             let next_token = self.next_token()?;
             let alternative = if matches!(next_token, Token::Lsquirly) {
@@ -357,11 +360,15 @@ impl<'a> Parser<'a> {
     }
 
     fn skip_optional_semicolon(&mut self) -> bool {
-        if let Some(Token::Semicolon) = self.lexer.peek() {
-            self.next_token();
-            true
+        if let Some(token) = self.lexer.peek() {
+            if matches!(token, Token::Semicolon) {
+                self.next_token();
+                true
+            } else {
+                false
+            }
         } else {
-            false
+            true
         }
     }
 
@@ -539,7 +546,7 @@ mod test {
 
     #[test]
     fn parse_if() {
-        let tests: [(&str, ast::Node); 4] = [
+        let tests: [(&str, ast::Node); 6] = [
             (
                 "if(a > b){ return a; } else { return b;}",
                 ast::Node::Expression(ast::Expression::If {
@@ -576,16 +583,49 @@ mod test {
                             name: "a".into(),
                         })],
                     },
-                    alternative: ast::Block {
+                    alternative: Some(ast::Block {
                         statements: vec![ast::Node::Expression(ast::Expression::Identifier {
                             name: "b".into(),
                         })],
-                    }
-                    .into(),
+                    }),
                 }),
             ),
             (
-                "if(a > b) a else { return b;};",
+                "if(a > b) { a }",
+                ast::Node::Expression(ast::Expression::If {
+                    condition: ast::Expression::Infix {
+                        left: ast::Expression::Identifier { name: "a".into() }.into(),
+                        op: token::Token::Gt,
+                        right: ast::Expression::Identifier { name: "b".into() }.into(),
+                    }
+                    .into(),
+                    consequence: ast::Block {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier {
+                            name: "a".into(),
+                        })],
+                    },
+                    alternative: None,
+                }),
+            ),
+            (
+                "if(a > b) a",
+                ast::Node::Expression(ast::Expression::If {
+                    condition: ast::Expression::Infix {
+                        left: ast::Expression::Identifier { name: "a".into() }.into(),
+                        op: token::Token::Gt,
+                        right: ast::Expression::Identifier { name: "b".into() }.into(),
+                    }
+                    .into(),
+                    consequence: ast::Block {
+                        statements: vec![ast::Node::Expression(ast::Expression::Identifier {
+                            name: "a".into(),
+                        })],
+                    },
+                    alternative: None,
+                }),
+            ),
+            (
+                "if(a > b) a else { return b }",
                 ast::Node::Expression(ast::Expression::If {
                     condition: ast::Expression::Infix {
                         left: ast::Expression::Identifier { name: "a".into() }.into(),

@@ -5,7 +5,7 @@ use std::{
 
 use crate::objects::Object;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Environment {
     parent: Option<Arc<RwLock<BTreeMap<String, Object>>>>,
     current: Arc<RwLock<BTreeMap<String, Object>>>,
@@ -16,11 +16,11 @@ impl Environment {
         Self::default()
     }
 
-    pub fn set(&mut self, name: &str, value: Object) {
+    pub fn set(&self, name: &str, value: Object) {
         let mut locked_curr = self.current.write().expect("Environment lock is poisoned");
         if locked_curr.contains_key(name) || self.parent.is_none() {
             locked_curr.insert(name.into(), value);
-        } else if let Some(parent) = self.parent.as_mut() {
+        } else if let Some(parent) = self.parent.as_ref() {
             parent
                 .write()
                 .expect("Environment lock is poisoned")
@@ -40,6 +40,22 @@ impl Environment {
                 .cloned()
         } else {
             locked_curr.get(name).cloned()
+        }
+    }
+
+    pub fn new_derived_env(&self) -> Self {
+        Self {
+            parent: Some(self.current.clone()),
+            current: Arc::default(),
+        }
+    }
+}
+
+impl Clone for Environment {
+    fn clone(&self) -> Self {
+        Self {
+            parent: self.parent.clone(),
+            current: self.current.clone(),
         }
     }
 }
