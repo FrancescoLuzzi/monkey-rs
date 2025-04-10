@@ -20,8 +20,8 @@ fn get_token_precedence(tok: &Token) -> Precedence {
     match tok {
         Token::Eq | Token::Neq => Precedence::Equals,
         Token::Gt | Token::Lt | Token::Ge | Token::Le => Precedence::Diff,
-        Token::Plus => Precedence::Sum,
-        Token::Asterisk => Precedence::Prod,
+        Token::Plus | Token::BitOr | Token::BitAnd => Precedence::Sum,
+        Token::Asterisk | Token::Slash => Precedence::Prod,
         Token::Bang | Token::Minus => Precedence::Prefix,
         Token::Lparen => Precedence::Call,
         _ => Precedence::Min,
@@ -647,7 +647,7 @@ mod test {
                 }),
             ),
             (
-                "if(a > b) { return a; } else b;",
+                "if(a > b) { return a/b; } else b;",
                 ast::Node::Expression(ast::Expression::If {
                     condition: ast::Expression::Infix {
                         left: ast::Expression::Identifier { name: "a".into() }.into(),
@@ -657,7 +657,11 @@ mod test {
                     .into(),
                     consequence: ast::Block {
                         statements: vec![ast::Node::Return {
-                            value: ast::Expression::Identifier { name: "a".into() },
+                            value: ast::Expression::Infix {
+                                left: ast::Expression::Identifier { name: "a".into() }.into(),
+                                right: ast::Expression::Identifier { name: "b".into() }.into(),
+                                op: token::Token::Slash,
+                            },
                         }],
                     },
                     alternative: ast::Block {

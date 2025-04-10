@@ -78,16 +78,9 @@ impl std::fmt::Display for Expression {
             Expression::Block { value } => value.fmt(f),
             Expression::Negated { value } => f.write_fmt(format_args!("!{}", value)),
             Expression::Minus { value } => f.write_fmt(format_args!("-{}", value)),
-            Expression::Function { parameters, body } => write!(
-                f,
-                "fn({}){}",
-                parameters
-                    .iter()
-                    .map(|stmt| format!("{stmt}"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                body
-            ),
+            Expression::Function { parameters, body } => {
+                write!(f, "fn({}){}", parameters.join(", "), body)
+            }
             Expression::Call {
                 function,
                 parameters,

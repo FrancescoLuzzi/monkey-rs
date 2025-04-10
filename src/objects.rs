@@ -7,6 +7,7 @@ pub enum Object {
     Bool(bool),
     Integer(i64),
     Float(f64),
+    #[display("'{_0}'")]
     String(String),
     Char(char),
     Error(String),

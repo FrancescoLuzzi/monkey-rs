@@ -62,14 +62,11 @@ fn eval_if(
     consequence: &ast::Block,
     alternative: Option<&ast::Block>,
 ) -> Option<Object> {
-    if let Some(Object::Bool(condition)) = eval_expr(env, condition) {
-        if condition {
-            eval_statements(env, &consequence.statements)
-        } else {
-            eval_statements(env, &alternative?.statements)
-        }
+    let object = eval_expr(env, condition)?;
+    if is_object_truthy(&object) {
+        eval_statements(env, &consequence.statements)
     } else {
-        None
+        eval_statements(env, &alternative?.statements)
     }
 }
 
@@ -99,17 +96,22 @@ fn eval_call(
     }
 }
 
-fn eval_negation(env: &Environment, expr: &ast::Expression) -> Option<Object> {
-    match eval_expr(env, expr)? {
-        Object::Null => Some(Object::Bool(true)),
-        Object::Bool(b) => Some(Object::Bool(!b)),
-        Object::Integer(n) => Some(Object::Bool(n != 0)),
-        Object::Float(n) => Some(Object::Bool(n != 0.0)),
-        Object::String(s) => Some(Object::Bool(s.chars().all(char::is_whitespace))),
-        Object::Char(c) => Some(Object::Bool(c != '\0' && c != ' ')),
-        Object::Error(_) => Some(Object::Bool(true)),
-        _ => None,
+fn is_object_truthy(object: &Object) -> bool {
+    match object {
+        Object::Null => false,
+        Object::Bool(b) => *b,
+        Object::Integer(n) => *n != 0,
+        Object::Float(n) => *n != 0.0,
+        Object::String(s) => s.chars().all(char::is_whitespace),
+        Object::Char(c) => *c != '\0' && *c != ' ',
+        Object::Error(_) => false,
+        Object::Function { .. } => true,
     }
+}
+
+fn eval_negation(env: &Environment, expr: &ast::Expression) -> Option<Object> {
+    let object = eval_expr(env, expr)?;
+    Some(Object::Bool(!is_object_truthy(&object)))
 }
 
 fn eval_minus(env: &Environment, expr: &ast::Expression) -> Option<Object> {
@@ -128,19 +130,20 @@ fn eval_infix(
     right: &ast::Expression,
 ) -> Option<Object> {
     match op {
-        crate::token::Token::Plus => eval_infix_sum(env, left, right),
-        crate::token::Token::Minus => todo!(),
-        crate::token::Token::Slash => todo!(),
-        crate::token::Token::And => todo!(),
-        crate::token::Token::BitAnd => todo!(),
-        crate::token::Token::Or => todo!(),
-        crate::token::Token::BitOr => todo!(),
-        crate::token::Token::Eq => todo!(),
-        crate::token::Token::Neq => todo!(),
-        crate::token::Token::Gt => todo!(),
-        crate::token::Token::Lt => todo!(),
-        crate::token::Token::Ge => todo!(),
-        crate::token::Token::Le => todo!(),
+        token::Token::Plus => eval_infix_sum(env, left, right),
+        token::Token::Minus => eval_infix_minus(env, left, right),
+        token::Token::Slash => eval_infix_slash(env, left, right),
+        token::Token::Asterisk => eval_infix_mul(env, left, right),
+        token::Token::And => todo!(),
+        token::Token::BitAnd => todo!(),
+        token::Token::Or => todo!(),
+        token::Token::BitOr => todo!(),
+        token::Token::Eq => todo!(),
+        token::Token::Neq => todo!(),
+        token::Token::Gt => todo!(),
+        token::Token::Lt => todo!(),
+        token::Token::Ge => todo!(),
+        token::Token::Le => todo!(),
         _ => None,
     }
 }
@@ -160,6 +163,60 @@ fn eval_infix_sum(
         (Object::Float(n), Object::Float(m)) => Some(Object::Float(n + m)),
         (Object::String(_), _) | (_, Object::String(_)) => {
             Some(Object::String(format!("{left}{right}")))
+        }
+        _ => None,
+    }
+}
+
+fn eval_infix_minus(
+    env: &Environment,
+    left: &ast::Expression,
+    right: &ast::Expression,
+) -> Option<Object> {
+    let left = eval_expr(env, left)?;
+    let right = eval_expr(env, right)?;
+    match (&left, &right) {
+        (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n - m)),
+        (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
+            Some(Object::Float(*f - *i as f64))
+        }
+        (Object::Float(n), Object::Float(m)) => Some(Object::Float(n - m)),
+        _ => None,
+    }
+}
+
+fn eval_infix_slash(
+    env: &Environment,
+    left: &ast::Expression,
+    right: &ast::Expression,
+) -> Option<Object> {
+    let left = eval_expr(env, left)?;
+    let right = eval_expr(env, right)?;
+    match (&left, &right) {
+        (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n / m)),
+        (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
+            Some(Object::Float(*f / *i as f64))
+        }
+        (Object::Float(n), Object::Float(m)) => Some(Object::Float(n / m)),
+        _ => None,
+    }
+}
+
+fn eval_infix_mul(
+    env: &Environment,
+    left: &ast::Expression,
+    right: &ast::Expression,
+) -> Option<Object> {
+    let left = eval_expr(env, left)?;
+    let right = eval_expr(env, right)?;
+    match (&left, &right) {
+        (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n * m)),
+        (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
+            Some(Object::Float(*f * *i as f64))
+        }
+        (Object::Float(n), Object::Float(m)) => Some(Object::Float(n * m)),
+        (Object::String(s), Object::Integer(n)) | (Object::Integer(n), Object::String(s)) => {
+            Some(Object::String(s.repeat(*n as usize)))
         }
         _ => None,
     }
