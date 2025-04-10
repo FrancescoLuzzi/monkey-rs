@@ -5,7 +5,7 @@ use std::{
 
 use crate::objects::Object;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Environment {
     parent: Option<Arc<RwLock<BTreeMap<String, Object>>>>,
     current: Arc<RwLock<BTreeMap<String, Object>>>,
@@ -47,15 +47,6 @@ impl Environment {
         Self {
             parent: Some(self.current.clone()),
             current: Arc::default(),
-        }
-    }
-}
-
-impl Clone for Environment {
-    fn clone(&self) -> Self {
-        Self {
-            parent: self.parent.clone(),
-            current: self.current.clone(),
         }
     }
 }
