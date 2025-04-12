@@ -1,4 +1,9 @@
-use crate::{ast, environment::Environment, objects::Object, token};
+use crate::{
+    ast::{self, Expression},
+    environment::Environment,
+    objects::Object,
+    token,
+};
 
 pub fn eval_program(env: &Environment, program: &ast::Program) -> Option<Object> {
     eval_statements(env, &program.statements)
@@ -56,6 +61,7 @@ pub fn eval_expr(env: &Environment, expr: &ast::Expression) -> Option<Object> {
             body: body.clone(),
             scoped_env: env.new_derived_env(),
         }),
+        ast::Expression::Index { value, index } => eval_index(env, value, index),
         ast::Expression::Call {
             function,
             parameters,
@@ -106,6 +112,17 @@ fn eval_call(
         eval_statements(&scoped_env, &body.statements)
     } else {
         None
+    }
+}
+
+fn eval_index(env: &Environment, value: &Expression, index: &Expression) -> Option<Object> {
+    let value = eval_expr(env, value)?;
+    let index = eval_expr(env, index)?;
+    match (value, index) {
+        (Object::String(s), Object::Integer(n)) => Some(Object::Char(s.chars().nth(n as usize)?)),
+        (Object::Array { values }, Object::Integer(n)) => values.get(n as usize).cloned(),
+        // TODO: add handling of maps here
+        _ => None,
     }
 }
 

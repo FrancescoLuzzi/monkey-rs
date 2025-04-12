@@ -53,6 +53,10 @@ pub enum Expression {
         parameters: Vec<String>,
         body: Block,
     },
+    Index {
+        value: Box<Expression>,
+        index: Box<Expression>,
+    },
     Call {
         function: String,
         parameters: Vec<Expression>,
@@ -94,6 +98,9 @@ impl std::fmt::Display for Expression {
             Expression::Minus { value } => f.write_fmt(format_args!("-{}", value)),
             Expression::Function { parameters, body } => {
                 write!(f, "fn({}){}", parameters.join(", "), body)
+            }
+            Expression::Index { value, index } => {
+                write!(f, "{}[{}]", value, index)
             }
             Expression::Call {
                 function,

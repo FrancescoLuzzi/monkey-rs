@@ -13,6 +13,7 @@ enum Precedence {
     Prod,
     Prefix,
     Call,
+    Index,
 }
 
 #[inline]
@@ -24,6 +25,7 @@ fn get_token_precedence(tok: &Token) -> Precedence {
         Token::Asterisk | Token::Slash => Precedence::Prod,
         Token::Bang | Token::Minus => Precedence::Prefix,
         Token::Lparen => Precedence::Call,
+        Token::Lsquare => Precedence::Index,
         _ => Precedence::Min,
     }
 }
@@ -100,6 +102,7 @@ impl<'a> Parser<'a> {
         }
         Some(expr)
     }
+
     fn parse_expr_prefix(&mut self, token: Token) -> Option<ast::Expression> {
         match token {
             Token::Ident(_) => self.parse_ident(token),
@@ -331,7 +334,25 @@ impl<'a> Parser<'a> {
                 })
             }
             Token::Lparen => self.parse_call(token, left),
+            Token::Lsquare => self.parse_index(token, left),
             // Token::QuestionMark => self.parse_if(),
+            _ => None,
+        }
+    }
+
+    fn parse_index(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
+        if !matches!(token, Token::Lsquare) {
+            panic!("Lsquare expected to parse_index")
+        }
+        let next_token = self.next_token()?;
+        let index = self.parse_expr(next_token, Precedence::Min)?;
+
+        match self.next_token()? {
+            Token::Rsquare => Some(ast::Expression::Index {
+                value: left.into(),
+                index: index.into(),
+            }),
+
             _ => None,
         }
     }
@@ -707,29 +728,41 @@ mod test {
     }
 
     #[test]
-    fn parse_array() {
-        let tests: [(&str, ast::Node); 1] = [(
-            "[1,\"test\",'c',(1+3)*2]",
-            ast::Node::Expression(ast::Expression::Array {
-                values: vec![
-                    ast::Expression::Integer { value: 1 },
-                    ast::Expression::String {
-                        value: "test".into(),
-                    },
-                    ast::Expression::Char { value: 'c' },
-                    ast::Expression::Infix {
-                        left: ast::Expression::Infix {
-                            left: ast::Expression::Integer { value: 1 }.into(),
-                            op: token::Token::Plus,
-                            right: ast::Expression::Integer { value: 3 }.into(),
-                        }
-                        .into(),
-                        op: token::Token::Asterisk,
-                        right: ast::Expression::Integer { value: 2 }.into(),
-                    },
-                ],
-            }),
-        )];
+    fn parse_square() {
+        let tests: [(&str, ast::Node); 2] = [
+            (
+                "[1,\"test\",'c',(1+3)*2]",
+                ast::Node::Expression(ast::Expression::Array {
+                    values: vec![
+                        ast::Expression::Integer { value: 1 },
+                        ast::Expression::String {
+                            value: "test".into(),
+                        },
+                        ast::Expression::Char { value: 'c' },
+                        ast::Expression::Infix {
+                            left: ast::Expression::Infix {
+                                left: ast::Expression::Integer { value: 1 }.into(),
+                                op: token::Token::Plus,
+                                right: ast::Expression::Integer { value: 3 }.into(),
+                            }
+                            .into(),
+                            op: token::Token::Asterisk,
+                            right: ast::Expression::Integer { value: 2 }.into(),
+                        },
+                    ],
+                }),
+            ),
+            (
+                "index[1]",
+                ast::Node::Expression(ast::Expression::Index {
+                    value: ast::Expression::Identifier {
+                        name: "index".into(),
+                    }
+                    .into(),
+                    index: ast::Expression::Integer { value: 1 }.into(),
+                }),
+            ),
+        ];
         for (source, node) in tests {
             let lex = lexer::Lexer::new(source);
             let mut parser = Parser::new(lex);
