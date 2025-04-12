@@ -46,6 +46,9 @@ pub enum Expression {
     Block {
         value: Block,
     },
+    Array {
+        values: Vec<Expression>,
+    },
     Function {
         parameters: Vec<String>,
         body: Block,
@@ -76,6 +79,17 @@ impl std::fmt::Display for Expression {
             Expression::Bool { value } => value.fmt(f),
             Expression::Char { value } => value.fmt(f),
             Expression::Block { value } => value.fmt(f),
+            Expression::Array { values } => {
+                write!(
+                    f,
+                    "[{}]",
+                    values
+                        .iter()
+                        .map(|stmt| format!("{stmt}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             Expression::Negated { value } => f.write_fmt(format_args!("!{}", value)),
             Expression::Minus { value } => f.write_fmt(format_args!("-{}", value)),
             Expression::Function { parameters, body } => {

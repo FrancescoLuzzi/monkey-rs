@@ -10,6 +10,13 @@ pub enum Object {
     #[display("'{_0}'")]
     String(String),
     Char(char),
+    #[display(
+        "[{}]",
+        values.iter().map(|stmt| format!("{stmt}")).collect::<Vec<_>>().join(",\n")
+    )]
+    Array {
+        values: Vec<Object>,
+    },
     Error(String),
     #[display("<function>")]
     Function {

@@ -15,6 +15,18 @@ fn eval_statements(env: &Environment, statements: &[ast::Node]) -> Option<Object
     Some(result)
 }
 
+fn eval_array(env: &Environment, expressions: &[ast::Expression]) -> Option<Object> {
+    let mut values = Vec::new();
+    for expr in expressions.iter() {
+        let tmp_val = eval_expr(env, expr)?;
+        if matches!(tmp_val, Object::Error(_)) {
+            return Some(tmp_val);
+        }
+        values.push(tmp_val);
+    }
+    Some(Object::Array { values })
+}
+
 pub fn eval_node(env: &Environment, node: &ast::Node) -> Option<Object> {
     match node {
         ast::Node::Let { name, value } => {
@@ -38,6 +50,7 @@ pub fn eval_expr(env: &Environment, expr: &ast::Expression) -> Option<Object> {
         ast::Expression::Negated { value } => eval_negation(env, value),
         ast::Expression::Minus { value } => eval_minus(env, value),
         ast::Expression::Block { value } => eval_statements(env, &value.statements),
+        ast::Expression::Array { values } => eval_array(env, values),
         ast::Expression::Function { parameters, body } => Some(Object::Function {
             parameters: parameters.clone(),
             body: body.clone(),
@@ -106,6 +119,7 @@ fn is_object_truthy(object: &Object) -> bool {
         Object::Char(c) => *c != '\0' && *c != ' ',
         Object::Error(_) => false,
         Object::Function { .. } => true,
+        Object::Array { values } => !values.is_empty(),
     }
 }
 
@@ -164,6 +178,10 @@ fn eval_infix_sum(
         (Object::String(_), _) | (_, Object::String(_)) => {
             Some(Object::String(format!("{left}{right}")))
         }
+        (Object::Array { values: v1 }, Object::Array { values: v2 }) => {
+            let v_out = v1.iter().chain(v2.iter()).cloned().collect();
+            Some(Object::Array { values: v_out })
+        }
         _ => None,
     }
 }
@@ -217,6 +235,16 @@ fn eval_infix_mul(
         (Object::Float(n), Object::Float(m)) => Some(Object::Float(n * m)),
         (Object::String(s), Object::Integer(n)) | (Object::Integer(n), Object::String(s)) => {
             Some(Object::String(s.repeat(*n as usize)))
+        }
+        (Object::Array { values }, Object::Integer(n))
+        | (Object::Integer(n), Object::Array { values }) => {
+            let v_out = values
+                .iter()
+                .cycle()
+                .take(values.len().saturating_mul(*n as usize))
+                .map(|obj| obj.to_owned())
+                .collect();
+            Some(Object::Array { values: v_out })
         }
         _ => None,
     }

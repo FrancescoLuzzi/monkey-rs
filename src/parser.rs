@@ -115,7 +115,7 @@ impl<'a> Parser<'a> {
             Token::Function => self.parse_function(token),
             Token::Lparen => self.parse_group(token),
             Token::If => self.parse_if(token),
-            Token::Lsquirly => todo!(), // BlockExpression
+            Token::Lsquare => self.parse_array(token),
             _ => None,
         }
     }
@@ -246,6 +246,28 @@ impl<'a> Parser<'a> {
                 consequence,
                 alternative: None,
             })
+        }
+    }
+
+    fn parse_array(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::Lsquare) {
+            panic!("Lsquare expected to parse_array")
+        }
+        let mut values: Vec<ast::Expression> = Vec::new();
+        if matches!(self.lexer.peek()?, Token::Rsquare) {
+            self.next_token()?;
+            return Some(ast::Expression::Array { values });
+        }
+        loop {
+            let next_token = self.next_token()?;
+            values.push(self.parse_expr(next_token, Precedence::Min)?);
+            if !self.skip_optional_comma() {
+                break;
+            }
+        }
+        match self.next_token()? {
+            Token::Rsquare => Some(ast::Expression::Array { values }),
+            _ => None,
         }
     }
 
@@ -673,6 +695,41 @@ mod test {
                 }),
             ),
         ];
+        for (source, node) in tests {
+            let lex = lexer::Lexer::new(source);
+            let mut parser = Parser::new(lex);
+            let program = parser
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse let stmt: {source}"));
+            assert_eq!(program.statements.len(), 1);
+            assert_eq!(program.statements[0], node)
+        }
+    }
+
+    #[test]
+    fn parse_array() {
+        let tests: [(&str, ast::Node); 1] = [(
+            "[1,\"test\",'c',(1+3)*2]",
+            ast::Node::Expression(ast::Expression::Array {
+                values: vec![
+                    ast::Expression::Integer { value: 1 },
+                    ast::Expression::String {
+                        value: "test".into(),
+                    },
+                    ast::Expression::Char { value: 'c' },
+                    ast::Expression::Infix {
+                        left: ast::Expression::Infix {
+                            left: ast::Expression::Integer { value: 1 }.into(),
+                            op: token::Token::Plus,
+                            right: ast::Expression::Integer { value: 3 }.into(),
+                        }
+                        .into(),
+                        op: token::Token::Asterisk,
+                        right: ast::Expression::Integer { value: 2 }.into(),
+                    },
+                ],
+            }),
+        )];
         for (source, node) in tests {
             let lex = lexer::Lexer::new(source);
             let mut parser = Parser::new(lex);
