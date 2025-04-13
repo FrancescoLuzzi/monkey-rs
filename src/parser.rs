@@ -20,7 +20,7 @@ enum Precedence {
 fn get_token_precedence(tok: &Token) -> Precedence {
     match tok {
         Token::Eq | Token::Neq => Precedence::Equals,
-        Token::Gt | Token::Lt | Token::Ge | Token::Le => Precedence::Diff,
+        Token::Gt | Token::Lt | Token::Ge | Token::Le | Token::And | Token::Or => Precedence::Diff,
         Token::Plus | Token::BitOr | Token::BitAnd => Precedence::Sum,
         Token::Asterisk | Token::Slash => Precedence::Prod,
         Token::Bang | Token::Minus => Precedence::Prefix,
@@ -119,6 +119,7 @@ impl<'a> Parser<'a> {
             Token::Lparen => self.parse_group(token),
             Token::If => self.parse_if(token),
             Token::Lsquare => self.parse_array(token),
+            Token::Lsquirly => self.parse_dict(token),
             _ => None,
         }
     }
@@ -274,6 +275,34 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_dict(&mut self, token: Token) -> Option<ast::Expression> {
+        if !matches!(token, Token::Lsquirly) {
+            panic!("Lsquirly expected to parse_dict")
+        }
+        let mut values: Vec<(ast::Expression, ast::Expression)> = Vec::new();
+        if matches!(self.lexer.peek()?, Token::Rsquirly) {
+            self.next_token()?;
+            return Some(ast::Expression::Dict { values });
+        }
+        loop {
+            let next_token = self.next_token()?;
+            let key = self.parse_expr(next_token, Precedence::Min)?;
+            if !self.skip_required_colon() {
+                return None;
+            }
+            let next_token = self.next_token()?;
+            let value = self.parse_expr(next_token, Precedence::Min)?;
+            values.push((key, value));
+            if !self.skip_optional_comma() {
+                break;
+            }
+        }
+        match self.next_token()? {
+            Token::Rsquirly => Some(ast::Expression::Dict { values }),
+            _ => None,
+        }
+    }
+
     fn parse_function_params(&mut self) -> Option<Vec<String>> {
         let mut result: Vec<String> = Vec::new();
         if matches!(self.lexer.peek()?, Token::Rparen) {
@@ -390,6 +419,15 @@ impl<'a> Parser<'a> {
             }),
 
             _ => None,
+        }
+    }
+
+    fn skip_required_colon(&mut self) -> bool {
+        if let Some(Token::Colon) = self.lexer.peek() {
+            self.next_token();
+            true
+        } else {
+            false
         }
     }
 
@@ -585,6 +623,52 @@ mod test {
                 }
             }
         )
+    }
+
+    macro_rules! define_infix_test_case {
+        (
+            $test_string:expr,
+            $left_value:expr,
+            $operator:path, 
+            $right_value:expr
+        ) => {
+            (
+                $test_string,
+                ast::Node::Expression(ast::Expression::Infix {
+                    left: ast::Expression::Integer { value: $left_value }.into(),
+                    op: $operator,
+                    right: ast::Expression::Integer { value: $right_value }.into(),
+                }),
+            )
+        };
+    }
+
+    #[test]
+    fn parse_ops() {
+        let tests: [(&str, ast::Node); 13] = [
+            define_infix_test_case!("1 / 2",1,token::Token::Slash,2),
+            define_infix_test_case!("1 + 2",1,token::Token::Plus,2),
+            define_infix_test_case!("1 * 2",1,token::Token::Asterisk,2),
+            define_infix_test_case!("1 && 2",1,token::Token::And,2),
+            define_infix_test_case!("1 & 2",1,token::Token::BitAnd,2),
+            define_infix_test_case!("1 || 2",1,token::Token::Or,2),
+            define_infix_test_case!("1 | 2",1,token::Token::BitOr,2),
+            define_infix_test_case!("1 == 2",1,token::Token::Eq,2),
+            define_infix_test_case!("1 != 2",1,token::Token::Neq,2),
+            define_infix_test_case!("1 > 2",1,token::Token::Gt,2),
+            define_infix_test_case!("1 < 2",1,token::Token::Lt,2),
+            define_infix_test_case!("1 >= 2",1,token::Token::Ge,2),
+            define_infix_test_case!("1 <= 2",1,token::Token::Le,2),
+        ];
+        for (source, node) in tests {
+            let lex = lexer::Lexer::new(source);
+            let mut parser = Parser::new(lex);
+            let program = parser
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse let stmt: {source}"));
+            assert_eq!(program.statements.len(), 1);
+            assert_eq!(program.statements[0], node)
+        }
     }
 
     #[test]

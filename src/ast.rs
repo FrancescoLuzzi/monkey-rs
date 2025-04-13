@@ -49,6 +49,9 @@ pub enum Expression {
     Array {
         values: Vec<Expression>,
     },
+    Dict {
+        values: Vec<(Expression, Expression)>,
+    },
     Function {
         parameters: Vec<String>,
         body: Block,
@@ -94,6 +97,17 @@ impl std::fmt::Display for Expression {
                         .join(", ")
                 )
             }
+            Expression::Dict { values } => {
+                write!(
+                    f,
+                    "{{\n{}}}",
+                    values
+                        .iter()
+                        .map(|(key, value)| format!("{key}: {value}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             Expression::Negated { value } => f.write_fmt(format_args!("!{}", value)),
             Expression::Minus { value } => f.write_fmt(format_args!("-{}", value)),
             Expression::Function { parameters, body } => {
@@ -135,7 +149,7 @@ impl std::fmt::Display for Expression {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub statements: Vec<Node>,
 }

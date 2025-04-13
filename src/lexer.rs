@@ -218,7 +218,7 @@ mod test {
         test(' ',x,y) || false && true;
         let s_test = "test";
         let s_test = "\"test";
-        [] >= <= != ! == > < \
+        [] >= <= != ! == > < \ && ||
         "#;
         let expected_tokens = vec![
             // let x = 5;
@@ -340,6 +340,8 @@ mod test {
             Token::Gt,
             Token::Lt,
             Token::BackSlash,
+            Token::And,
+            Token::Or,
             // end
             Token::Eof,
         ];

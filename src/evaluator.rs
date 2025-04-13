@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use crate::{
     ast::{self, Expression},
     environment::Environment,
-    objects::Object,
+    objects::{HashKey, Object},
     token,
 };
 
@@ -32,6 +34,25 @@ fn eval_array(env: &Environment, expressions: &[ast::Expression]) -> Option<Obje
     Some(Object::Array { values })
 }
 
+fn eval_dict(
+    env: &Environment,
+    key_values: &[(ast::Expression, ast::Expression)],
+) -> Option<Object> {
+    let mut values: HashMap<HashKey, Object> = HashMap::new();
+    for (key, value) in key_values.iter() {
+        let key = eval_expr(env, key)?;
+        if matches!(key, Object::Error(_)) {
+            return Some(key);
+        }
+        let value = eval_expr(env, value)?;
+        if matches!(value, Object::Error(_)) {
+            return Some(value);
+        }
+        values.insert(key.as_ref().try_into().ok()?, value);
+    }
+    Some(Object::Dict { values })
+}
+
 pub fn eval_node(env: &Environment, node: &ast::Node) -> Option<Object> {
     match node {
         ast::Node::Let { name, value } => {
@@ -56,6 +77,7 @@ pub fn eval_expr(env: &Environment, expr: &ast::Expression) -> Option<Object> {
         ast::Expression::Minus { value } => eval_minus(env, value),
         ast::Expression::Block { value } => eval_statements(env, &value.statements),
         ast::Expression::Array { values } => eval_array(env, values),
+        ast::Expression::Dict { values } => eval_dict(env, values),
         ast::Expression::Function { parameters, body } => Some(Object::Function {
             parameters: parameters.clone(),
             body: body.clone(),
@@ -82,7 +104,7 @@ fn eval_if(
     alternative: Option<&ast::Block>,
 ) -> Option<Object> {
     let object = eval_expr(env, condition)?;
-    if is_object_truthy(&object) {
+    if object.is_truthy() {
         eval_statements(env, &consequence.statements)
     } else {
         eval_statements(env, &alternative?.statements)
@@ -121,28 +143,14 @@ fn eval_index(env: &Environment, value: &Expression, index: &Expression) -> Opti
     match (value, index) {
         (Object::String(s), Object::Integer(n)) => Some(Object::Char(s.chars().nth(n as usize)?)),
         (Object::Array { values }, Object::Integer(n)) => values.get(n as usize).cloned(),
-        // TODO: add handling of maps here
+        (Object::Dict { values }, obj) => values.get(&obj.as_ref().try_into().ok()?).cloned(),
         _ => None,
-    }
-}
-
-fn is_object_truthy(object: &Object) -> bool {
-    match object {
-        Object::Null => false,
-        Object::Bool(b) => *b,
-        Object::Integer(n) => *n != 0,
-        Object::Float(n) => *n != 0.0,
-        Object::String(s) => s.chars().all(char::is_whitespace),
-        Object::Char(c) => *c != '\0' && *c != ' ',
-        Object::Error(_) => false,
-        Object::Function { .. } => true,
-        Object::Array { values } => !values.is_empty(),
     }
 }
 
 fn eval_negation(env: &Environment, expr: &ast::Expression) -> Option<Object> {
     let object = eval_expr(env, expr)?;
-    Some(Object::Bool(!is_object_truthy(&object)))
+    Some(Object::Bool(object.is_truthy()))
 }
 
 fn eval_minus(env: &Environment, expr: &ast::Expression) -> Option<Object> {
@@ -165,9 +173,9 @@ fn eval_infix(
         token::Token::Minus => eval_infix_minus(env, left, right),
         token::Token::Slash => eval_infix_slash(env, left, right),
         token::Token::Asterisk => eval_infix_mul(env, left, right),
-        token::Token::And => todo!(),
+        token::Token::And => eval_infix_and(env, left, right),
+        token::Token::Or => eval_infix_or(env, left, right),
         token::Token::BitAnd => todo!(),
-        token::Token::Or => todo!(),
         token::Token::BitOr => todo!(),
         token::Token::Eq => todo!(),
         token::Token::Neq => todo!(),
@@ -266,3 +274,20 @@ fn eval_infix_mul(
         _ => None,
     }
 }
+
+macro_rules! define_infix_bool_evaluator {
+    ($func_name:ident, $operator:tt) => {
+        fn $func_name(
+            env: &Environment,
+            left: &ast::Expression,
+            right: &ast::Expression,
+        ) -> Option<Object> {
+            let left = eval_expr(env, left)?;
+            let right = eval_expr(env, right)?;
+            Some(Object::Bool(left.is_truthy() $operator right.is_truthy()))
+        }
+    };
+}
+
+define_infix_bool_evaluator!(eval_infix_and,&&);
+define_infix_bool_evaluator!(eval_infix_or,||);
