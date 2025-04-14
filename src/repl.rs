@@ -24,6 +24,7 @@ pub fn start(mut input: impl BufRead, mut output: impl Write) -> io::Result<()> 
         ))?;
         output.write_all(b">>")?;
         output.flush()?;
+        buff.clear();
     }
     Ok(())
 }
