@@ -109,6 +109,7 @@ impl<'a> Parser<'a> {
             Token::True | Token::False => Some(ast::Expression::Bool {
                 value: token == Token::True,
             }),
+            Token::Null => Some(ast::Expression::Null),
             Token::Char(_) => self.parse_char(token),
             Token::Minus => self.parse_minus(token),
             Token::Bang => self.parse_negated(token),

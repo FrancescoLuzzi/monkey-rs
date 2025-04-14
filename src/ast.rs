@@ -19,6 +19,7 @@ impl std::fmt::Display for Node {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
+    Null,
     Identifier {
         name: String,
     },
@@ -79,6 +80,7 @@ pub enum Expression {
 impl std::fmt::Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Expression::Null => f.write_str("null"),
             Expression::Identifier { name } => name.fmt(f),
             Expression::Integer { value } => value.fmt(f),
             Expression::Float { value } => value.fmt(f),

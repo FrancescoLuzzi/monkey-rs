@@ -85,6 +85,7 @@ pub fn eval_expr(
     expr: &ast::Expression,
 ) -> Option<Object> {
     match expr {
+        ast::Expression::Null => Some(Object::Null),
         ast::Expression::Identifier { name } => Some(
             env.get(name)
                 .unwrap_or(Object::Error(format!("{name} not yet defined"))),
@@ -250,14 +251,14 @@ fn eval_infix(
         token::Token::Asterisk => eval_infix_mul(env, builtin, left, right),
         token::Token::And => eval_infix_and(env, builtin, left, right),
         token::Token::Or => eval_infix_or(env, builtin, left, right),
-        token::Token::BitAnd => todo!(),
-        token::Token::BitOr => todo!(),
-        token::Token::Eq => todo!(),
-        token::Token::Neq => todo!(),
-        token::Token::Gt => todo!(),
-        token::Token::Lt => todo!(),
-        token::Token::Ge => todo!(),
-        token::Token::Le => todo!(),
+        token::Token::Eq => eval_infix_eq(env, builtin, left, right),
+        token::Token::Neq => eval_infix_neq(env, builtin, left, right),
+        token::Token::Gt => eval_infix_gt(env, builtin, left, right),
+        token::Token::Lt => eval_infix_lt(env, builtin, left, right),
+        token::Token::Ge => eval_infix_ge(env, builtin, left, right),
+        token::Token::Le => eval_infix_le(env, builtin, left, right),
+        token::Token::BitAnd => eval_infix_bit_and(env, builtin, left, right),
+        token::Token::BitOr => eval_infix_bit_or(env, builtin, left, right),
         _ => None,
     }
 }
@@ -371,3 +372,63 @@ macro_rules! define_infix_bool_evaluator {
 
 define_infix_bool_evaluator!(eval_infix_and,&&);
 define_infix_bool_evaluator!(eval_infix_or,||);
+
+macro_rules! define_infix_obj_eq {
+    ($func_name:ident, $operator:tt) => {
+        fn $func_name(
+            env: &Environment,
+    builtin: &Builtin<Built>,
+            left: &ast::Expression,
+            right: &ast::Expression,
+        ) -> Option<Object> {
+            let left = eval_expr(env,builtin, left)?;
+            let right = eval_expr(env,builtin, right)?;
+            Some(Object::Bool(left $operator right))
+        }
+    };
+}
+define_infix_obj_eq!(eval_infix_eq, == );
+define_infix_obj_eq!(eval_infix_neq, != );
+
+macro_rules! define_infix_bool_comparison {
+    ($func_name:ident, $operator:tt) => {
+        fn $func_name(
+            env: &Environment,
+            builtin: &Builtin<Built>,
+            left: &ast::Expression,
+            right: &ast::Expression,
+        ) -> Option<Object> {
+            let left = eval_expr(env, builtin, left)?;
+            let right = eval_expr(env, builtin, right)?;
+            if left.partial_cmp(&right).is_some() {
+                Some(Object::Bool(left $operator right))
+            }else{
+                Some(Object::Error(format!("can't compare {} and {}",left,right)))
+            }
+        }
+    };
+}
+define_infix_bool_comparison!(eval_infix_gt,>);
+define_infix_bool_comparison!(eval_infix_ge,>=);
+define_infix_bool_comparison!(eval_infix_lt,<);
+define_infix_bool_comparison!(eval_infix_le,<=);
+
+macro_rules! define_infix_bit_operator {
+    ($func_name:ident, $operator:tt) => {
+        fn $func_name(
+            env: &Environment,
+            builtin: &Builtin<Built>,
+            left: &ast::Expression,
+            right: &ast::Expression,
+        ) -> Option<Object> {
+            let left = eval_expr(env, builtin, left)?;
+            let right = eval_expr(env, builtin, right)?;
+            match (&left,&right){
+                (Object::Integer(n1), Object::Integer(n2)) => Some(Object::Integer(*n1 $operator *n2)),
+                _ => Some(Object::Error(format!("can't use bit operator `{}` on {} and {}", stringify!($operator), left, right)))
+            }
+        }
+    };
+}
+define_infix_bit_operator!(eval_infix_bit_and,&);
+define_infix_bit_operator!(eval_infix_bit_or,|);

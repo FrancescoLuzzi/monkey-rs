@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
 use crate::{ast, environment::Environment};
 
@@ -34,6 +34,72 @@ pub enum Object {
         body: ast::Block,
         scoped_env: Environment,
     },
+}
+
+impl PartialOrd for Object {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Object::Null, _) | (_, Object::Null) => None,
+            (Object::Bool(b1), Object::Bool(b2)) => b1.partial_cmp(b2),
+            (Object::Bool(b), Object::Integer(n)) => (*b as i64).partial_cmp(n),
+            (Object::Integer(n), Object::Bool(b)) => n.partial_cmp(&(*b as i64)),
+            (Object::Bool(b), Object::Float(n)) => (*b as i64 as f64).partial_cmp(n),
+            (Object::Integer(n1), Object::Integer(n2)) => n1.partial_cmp(n2),
+            (Object::Integer(i), Object::Float(f)) => (*i as f64).partial_cmp(f),
+            (Object::Integer(n), Object::Char(c)) => n.partial_cmp(&(*c as i64)),
+            (Object::Float(n), Object::Bool(b)) => n.partial_cmp(&(*b as i64 as f64)),
+            (Object::Float(f), Object::Integer(i)) => f.partial_cmp(&(*i as f64)),
+            (Object::Float(f0), Object::Float(f1)) => f0.partial_cmp(f1),
+            (Object::String(s0), Object::String(s1)) => s0.partial_cmp(s1),
+            (Object::Char(c), Object::Integer(n)) => (*c as i64).partial_cmp(n),
+            (Object::Char(c0), Object::Char(c1)) => c0.partial_cmp(c1),
+            (Object::Array { values: arr0 }, Object::Array { values: arr1 }) => {
+                let cmp = arr0
+                    .iter()
+                    .zip(arr1.iter())
+                    .map(|(x0, x1)| x0.partial_cmp(x1))
+                    .find(|x| x != &Some(Ordering::Equal));
+                if let Some(cmp) = cmp {
+                    cmp
+                } else {
+                    arr0.len().partial_cmp(&arr1.len())
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
+            (Self::Integer(l0), Self::Integer(r0)) => l0 == r0,
+            (Self::Float(l0), Self::Float(r0)) => l0 == r0,
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::Char(l0), Self::Char(r0)) => l0 == r0,
+            (Self::Array { values: l_values }, Self::Array { values: r_values }) => {
+                l_values == r_values
+            }
+            (Self::Dict { values: l_values }, Self::Dict { values: r_values }) => {
+                l_values == r_values
+            }
+            (Self::Error(l0), Self::Error(r0)) => l0 == r0,
+            (
+                Self::Function {
+                    parameters: l_parameters,
+                    body: l_body,
+                    ..
+                },
+                Self::Function {
+                    parameters: r_parameters,
+                    body: r_body,
+                    ..
+                },
+            ) => l_parameters == r_parameters && l_body == r_body,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
 }
 
 impl Object {

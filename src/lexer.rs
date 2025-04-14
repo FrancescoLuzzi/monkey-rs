@@ -219,6 +219,7 @@ mod test {
         let s_test = "test";
         let s_test = "\"test";
         [] >= <= != ! == > < \ && ||
+        null
         "#;
         let expected_tokens = vec![
             // let x = 5;
@@ -329,7 +330,7 @@ mod test {
             Token::Assign,
             Token::String("\"test".into()),
             Token::Semicolon,
-            // [] >= <= != ! == > < \
+            // [] >= <= != ! == > < \ && ||
             Token::Lsquare,
             Token::Rsquare,
             Token::Ge,
@@ -342,6 +343,8 @@ mod test {
             Token::BackSlash,
             Token::And,
             Token::Or,
+            // null
+            Token::Null,
             // end
             Token::Eof,
         ];

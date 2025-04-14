@@ -44,6 +44,7 @@ pub enum Token {
     True,
     False,
     // literals
+    Null,
     Integer(i64),
     Floating(f64),
     Ident(String),
@@ -92,6 +93,7 @@ impl std::fmt::Display for Token {
             Token::Function => f.write_str("fn"),
             Token::True => f.write_str("true"),
             Token::False => f.write_str("false"),
+            Token::Null => f.write_str("null"),
             Token::Integer(n) => f.write_fmt(format_args!("{}", n)),
             Token::Floating(n) => f.write_fmt(format_args!("{}", n)),
             Token::Ident(ident) => f.write_str(ident),
@@ -110,6 +112,7 @@ pub fn lookup_ident(ident: String) -> Token {
         "fn" => Token::Function,
         "true" => Token::True,
         "false" => Token::False,
+        "null" => Token::Null,
         _ => Token::Ident(ident),
     }
 }
