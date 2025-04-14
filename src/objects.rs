@@ -26,6 +26,7 @@ pub enum Object {
     Dict {
         values: HashMap<HashKey, Object>,
     },
+    #[display("ERROR: {_0}")]
     Error(String),
     #[display("<function>")]
     Function {

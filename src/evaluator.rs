@@ -2,19 +2,28 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{self, Expression},
+    builtin::{Built, Builtin},
     environment::Environment,
     objects::{HashKey, Object},
     token,
 };
 
-pub fn eval_program(env: &Environment, program: &ast::Program) -> Option<Object> {
-    eval_statements(env, &program.statements)
+pub fn eval_program(
+    env: &Environment,
+    builtin: &Builtin<Built>,
+    program: &ast::Program,
+) -> Option<Object> {
+    eval_statements(env, builtin, &program.statements)
 }
 
-fn eval_statements(env: &Environment, statements: &[ast::Node]) -> Option<Object> {
+fn eval_statements(
+    env: &Environment,
+    builtin: &Builtin<Built>,
+    statements: &[ast::Node],
+) -> Option<Object> {
     let mut result = Object::Null;
     for node in statements.iter() {
-        result = eval_node(env, node)?;
+        result = eval_node(env, builtin, node)?;
         if matches!(result, Object::Error(_)) {
             return Some(result);
         }
@@ -22,10 +31,14 @@ fn eval_statements(env: &Environment, statements: &[ast::Node]) -> Option<Object
     Some(result)
 }
 
-fn eval_array(env: &Environment, expressions: &[ast::Expression]) -> Option<Object> {
+fn eval_array(
+    env: &Environment,
+    builtin: &Builtin<Built>,
+    expressions: &[ast::Expression],
+) -> Option<Object> {
     let mut values = Vec::new();
     for expr in expressions.iter() {
-        let tmp_val = eval_expr(env, expr)?;
+        let tmp_val = eval_expr(env, builtin, expr)?;
         if matches!(tmp_val, Object::Error(_)) {
             return Some(tmp_val);
         }
@@ -36,15 +49,16 @@ fn eval_array(env: &Environment, expressions: &[ast::Expression]) -> Option<Obje
 
 fn eval_dict(
     env: &Environment,
+    builtin: &Builtin<Built>,
     key_values: &[(ast::Expression, ast::Expression)],
 ) -> Option<Object> {
     let mut values: HashMap<HashKey, Object> = HashMap::new();
     for (key, value) in key_values.iter() {
-        let key = eval_expr(env, key)?;
+        let key = eval_expr(env, builtin, key)?;
         if matches!(key, Object::Error(_)) {
             return Some(key);
         }
-        let value = eval_expr(env, value)?;
+        let value = eval_expr(env, builtin, value)?;
         if matches!(value, Object::Error(_)) {
             return Some(value);
         }
@@ -53,70 +67,85 @@ fn eval_dict(
     Some(Object::Dict { values })
 }
 
-pub fn eval_node(env: &Environment, node: &ast::Node) -> Option<Object> {
+pub fn eval_node(env: &Environment, builtin: &Builtin<Built>, node: &ast::Node) -> Option<Object> {
     match node {
         ast::Node::Let { name, value } => {
-            let value = eval_expr(env, value)?;
+            let value = eval_expr(env, builtin, value)?;
             env.set(name, value);
             Some(Object::Null)
         }
-        ast::Node::Return { value } => eval_expr(env, value),
-        ast::Node::Expression(expression) => eval_expr(env, expression),
+        ast::Node::Return { value } => eval_expr(env, builtin, value),
+        ast::Node::Expression(expression) => eval_expr(env, builtin, expression),
     }
 }
 
-pub fn eval_expr(env: &Environment, expr: &ast::Expression) -> Option<Object> {
+pub fn eval_expr(
+    env: &Environment,
+    builtin: &Builtin<Built>,
+    expr: &ast::Expression,
+) -> Option<Object> {
     match expr {
-        ast::Expression::Identifier { name } => env.get(name),
+        ast::Expression::Identifier { name } => Some(
+            env.get(name)
+                .unwrap_or(Object::Error(format!("{name} not yet defined"))),
+        ),
         ast::Expression::Integer { value } => Some(Object::Integer(*value)),
         ast::Expression::Float { value } => Some(Object::Float(*value)),
         ast::Expression::String { value } => Some(Object::String(value.clone())),
         ast::Expression::Bool { value } => Some(Object::Bool(*value)),
         ast::Expression::Char { value } => Some(Object::Char(*value)),
-        ast::Expression::Negated { value } => eval_negation(env, value),
-        ast::Expression::Minus { value } => eval_minus(env, value),
-        ast::Expression::Block { value } => eval_statements(env, &value.statements),
-        ast::Expression::Array { values } => eval_array(env, values),
-        ast::Expression::Dict { values } => eval_dict(env, values),
+        ast::Expression::Negated { value } => eval_negation(env, builtin, value),
+        ast::Expression::Minus { value } => eval_minus(env, builtin, value),
+        ast::Expression::Block { value } => eval_statements(env, builtin, &value.statements),
+        ast::Expression::Array { values } => eval_array(env, builtin, values),
+        ast::Expression::Dict { values } => eval_dict(env, builtin, values),
         ast::Expression::Function { parameters, body } => Some(Object::Function {
             parameters: parameters.clone(),
             body: body.clone(),
             scoped_env: env.new_derived_env(),
         }),
-        ast::Expression::Index { value, index } => eval_index(env, value, index),
+        ast::Expression::Index { value, index } => eval_index(env, builtin, value, index),
         ast::Expression::Call {
             function,
             parameters,
-        } => eval_call(env, function, parameters),
+        } => eval_call(env, builtin, function, parameters),
         ast::Expression::If {
             condition,
             consequence,
             alternative,
-        } => eval_if(env, condition, consequence, alternative.as_ref()),
-        ast::Expression::Infix { left, right, op } => eval_infix(env, left, op, right),
+        } => eval_if(env, builtin, condition, consequence, alternative.as_ref()),
+        ast::Expression::Infix { left, right, op } => eval_infix(env, builtin, left, op, right),
     }
 }
 
 fn eval_if(
     env: &Environment,
+    builtin: &Builtin<Built>,
     condition: &ast::Expression,
     consequence: &ast::Block,
     alternative: Option<&ast::Block>,
 ) -> Option<Object> {
-    let object = eval_expr(env, condition)?;
+    let object = eval_expr(env, builtin, condition)?;
     if object.is_truthy() {
-        eval_statements(env, &consequence.statements)
+        eval_statements(env, builtin, &consequence.statements)
     } else {
-        eval_statements(env, &alternative?.statements)
+        eval_statements(env, builtin, &alternative?.statements)
     }
 }
 
 fn eval_call(
     env: &Environment,
+    builtin: &Builtin<Built>,
     function: &str,
     call_parameters: &[ast::Expression],
 ) -> Option<Object> {
-    if let Some(Object::Function {
+    if let Ok(handler) = builtin.get(function) {
+        let mut params = Vec::new();
+        for param in call_parameters.iter() {
+            params.push(eval_expr(env, builtin, param)?);
+        }
+        Some(handler(&mut params))
+    } else if let Some(Object::Function {
         parameters,
         body,
         scoped_env,
@@ -125,21 +154,31 @@ fn eval_call(
         if parameters.len() != call_parameters.len() {
             return None;
         }
-        for (param_name, param_value) in parameters
-            .iter()
-            .zip(call_parameters.iter().map(|expr| eval_expr(env, expr)))
-        {
-            scoped_env.set(param_name, param_value?);
+        for (param_name, param_value) in parameters.iter().zip(
+            call_parameters
+                .iter()
+                .map(|expr| eval_expr(env, builtin, expr)),
+        ) {
+            let param_value = param_value?;
+            if matches!(param_value, Object::Error(_)) {
+                return Some(param_value);
+            }
+            scoped_env.set(param_name, param_value);
         }
-        eval_statements(&scoped_env, &body.statements)
+        eval_statements(&scoped_env, builtin, &body.statements)
     } else {
         None
     }
 }
 
-fn eval_index(env: &Environment, value: &Expression, index: &Expression) -> Option<Object> {
-    let value = eval_expr(env, value)?;
-    let index = eval_expr(env, index)?;
+fn eval_index(
+    env: &Environment,
+    builtin: &Builtin<Built>,
+    value: &Expression,
+    index: &Expression,
+) -> Option<Object> {
+    let value = eval_expr(env, builtin, value)?;
+    let index = eval_expr(env, builtin, index)?;
     match (value, index) {
         (Object::String(s), Object::Integer(n)) => Some(Object::Char(s.chars().nth(n as usize)?)),
         (Object::Array { values }, Object::Integer(n)) => values.get(n as usize).cloned(),
@@ -148,13 +187,22 @@ fn eval_index(env: &Environment, value: &Expression, index: &Expression) -> Opti
     }
 }
 
-fn eval_negation(env: &Environment, expr: &ast::Expression) -> Option<Object> {
-    let object = eval_expr(env, expr)?;
+fn eval_negation(
+    env: &Environment,
+
+    builtin: &Builtin<Built>,
+    expr: &ast::Expression,
+) -> Option<Object> {
+    let object = eval_expr(env, builtin, expr)?;
     Some(Object::Bool(object.is_truthy()))
 }
 
-fn eval_minus(env: &Environment, expr: &ast::Expression) -> Option<Object> {
-    match eval_expr(env, expr)? {
+fn eval_minus(
+    env: &Environment,
+    builtin: &Builtin<Built>,
+    expr: &ast::Expression,
+) -> Option<Object> {
+    match eval_expr(env, builtin, expr)? {
         Object::Bool(b) => Some(Object::Integer(-(b as i64))),
         Object::Integer(n) => Some(Object::Integer(-n)),
         Object::Float(n) => Some(Object::Float(-n)),
@@ -164,17 +212,18 @@ fn eval_minus(env: &Environment, expr: &ast::Expression) -> Option<Object> {
 
 fn eval_infix(
     env: &Environment,
+    builtin: &Builtin<Built>,
     left: &ast::Expression,
     op: &token::Token,
     right: &ast::Expression,
 ) -> Option<Object> {
     match op {
-        token::Token::Plus => eval_infix_sum(env, left, right),
-        token::Token::Minus => eval_infix_minus(env, left, right),
-        token::Token::Slash => eval_infix_slash(env, left, right),
-        token::Token::Asterisk => eval_infix_mul(env, left, right),
-        token::Token::And => eval_infix_and(env, left, right),
-        token::Token::Or => eval_infix_or(env, left, right),
+        token::Token::Plus => eval_infix_sum(env, builtin, left, right),
+        token::Token::Minus => eval_infix_minus(env, builtin, left, right),
+        token::Token::Slash => eval_infix_slash(env, builtin, left, right),
+        token::Token::Asterisk => eval_infix_mul(env, builtin, left, right),
+        token::Token::And => eval_infix_and(env, builtin, left, right),
+        token::Token::Or => eval_infix_or(env, builtin, left, right),
         token::Token::BitAnd => todo!(),
         token::Token::BitOr => todo!(),
         token::Token::Eq => todo!(),
@@ -189,11 +238,12 @@ fn eval_infix(
 
 fn eval_infix_sum(
     env: &Environment,
+    builtin: &Builtin<Built>,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
-    let left = eval_expr(env, left)?;
-    let right = eval_expr(env, right)?;
+    let left = eval_expr(env, builtin, left)?;
+    let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
         (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n + m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
@@ -213,11 +263,12 @@ fn eval_infix_sum(
 
 fn eval_infix_minus(
     env: &Environment,
+    builtin: &Builtin<Built>,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
-    let left = eval_expr(env, left)?;
-    let right = eval_expr(env, right)?;
+    let left = eval_expr(env, builtin, left)?;
+    let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
         (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n - m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
@@ -230,11 +281,12 @@ fn eval_infix_minus(
 
 fn eval_infix_slash(
     env: &Environment,
+    builtin: &Builtin<Built>,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
-    let left = eval_expr(env, left)?;
-    let right = eval_expr(env, right)?;
+    let left = eval_expr(env, builtin, left)?;
+    let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
         (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n / m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
@@ -247,11 +299,12 @@ fn eval_infix_slash(
 
 fn eval_infix_mul(
     env: &Environment,
+    builtin: &Builtin<Built>,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
-    let left = eval_expr(env, left)?;
-    let right = eval_expr(env, right)?;
+    let left = eval_expr(env, builtin, left)?;
+    let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
         (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n * m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
@@ -279,11 +332,12 @@ macro_rules! define_infix_bool_evaluator {
     ($func_name:ident, $operator:tt) => {
         fn $func_name(
             env: &Environment,
+    builtin: &Builtin<Built>,
             left: &ast::Expression,
             right: &ast::Expression,
         ) -> Option<Object> {
-            let left = eval_expr(env, left)?;
-            let right = eval_expr(env, right)?;
+            let left = eval_expr(env,builtin, left)?;
+            let right = eval_expr(env,builtin, right)?;
             Some(Object::Bool(left.is_truthy() $operator right.is_truthy()))
         }
     };
