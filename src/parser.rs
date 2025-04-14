@@ -25,7 +25,7 @@ fn get_token_precedence(tok: &Token) -> Precedence {
         Token::Asterisk | Token::Slash => Precedence::Prod,
         Token::Bang | Token::Minus => Precedence::Prefix,
         Token::Lparen => Precedence::Call,
-        Token::Lsquare => Precedence::Index,
+        Token::Lsquare | Token::Dot => Precedence::Index,
         _ => Precedence::Min,
     }
 }
@@ -53,9 +53,6 @@ impl<'a> Parser<'a> {
         let res = match token {
             Token::Let => self.parse_let_stmt(token),
             Token::Return => self.parse_return_stmt(token),
-            // support fn test(){...}
-            // it needs to be represented as Let(name,FunctionExpr(block))
-            //Token::Function => self.parse_function_stmt(),
             _ => Some(ast::Node::Expression(
                 self.parse_expr(token, Precedence::Min)?,
             )),
@@ -363,15 +360,20 @@ impl<'a> Parser<'a> {
                 })
             }
             Token::Lparen => self.parse_call(token, left),
-            Token::Lsquare => self.parse_index(token, left),
+            Token::Lsquare => self.parse_index_square(token, left),
+            Token::Dot => self.parse_index_dot(token, left),
             // Token::QuestionMark => self.parse_if(),
             _ => None,
         }
     }
 
-    fn parse_index(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
+    fn parse_index_square(
+        &mut self,
+        token: Token,
+        left: ast::Expression,
+    ) -> Option<ast::Expression> {
         if !matches!(token, Token::Lsquare) {
-            panic!("Lsquare expected to parse_index")
+            panic!("Lsquare expected to parse_index_square")
         }
         let next_token = self.next_token()?;
         let index = self.parse_expr(next_token, Precedence::Min)?;
@@ -384,6 +386,18 @@ impl<'a> Parser<'a> {
 
             _ => None,
         }
+    }
+
+    fn parse_index_dot(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
+        if !matches!(token, Token::Dot) {
+            panic!("Dot expected to parse_index_dot")
+        }
+        let next_token = self.next_token()?;
+        let index = self.parse_expr(next_token, Precedence::Index)?;
+        Some(ast::Expression::Index {
+            value: left.into(),
+            index: index.into(),
+        })
     }
 
     fn parse_call(&mut self, token: Token, left: ast::Expression) -> Option<ast::Expression> {
@@ -629,7 +643,7 @@ mod test {
         (
             $test_string:expr,
             $left_value:expr,
-            $operator:path, 
+            $operator:path,
             $right_value:expr
         ) => {
             (
@@ -637,7 +651,10 @@ mod test {
                 ast::Node::Expression(ast::Expression::Infix {
                     left: ast::Expression::Integer { value: $left_value }.into(),
                     op: $operator,
-                    right: ast::Expression::Integer { value: $right_value }.into(),
+                    right: ast::Expression::Integer {
+                        value: $right_value,
+                    }
+                    .into(),
                 }),
             )
         };
@@ -646,19 +663,19 @@ mod test {
     #[test]
     fn parse_ops() {
         let tests: [(&str, ast::Node); 13] = [
-            define_infix_test_case!("1 / 2",1,token::Token::Slash,2),
-            define_infix_test_case!("1 + 2",1,token::Token::Plus,2),
-            define_infix_test_case!("1 * 2",1,token::Token::Asterisk,2),
-            define_infix_test_case!("1 && 2",1,token::Token::And,2),
-            define_infix_test_case!("1 & 2",1,token::Token::BitAnd,2),
-            define_infix_test_case!("1 || 2",1,token::Token::Or,2),
-            define_infix_test_case!("1 | 2",1,token::Token::BitOr,2),
-            define_infix_test_case!("1 == 2",1,token::Token::Eq,2),
-            define_infix_test_case!("1 != 2",1,token::Token::Neq,2),
-            define_infix_test_case!("1 > 2",1,token::Token::Gt,2),
-            define_infix_test_case!("1 < 2",1,token::Token::Lt,2),
-            define_infix_test_case!("1 >= 2",1,token::Token::Ge,2),
-            define_infix_test_case!("1 <= 2",1,token::Token::Le,2),
+            define_infix_test_case!("1 / 2", 1, token::Token::Slash, 2),
+            define_infix_test_case!("1 + 2", 1, token::Token::Plus, 2),
+            define_infix_test_case!("1 * 2", 1, token::Token::Asterisk, 2),
+            define_infix_test_case!("1 && 2", 1, token::Token::And, 2),
+            define_infix_test_case!("1 & 2", 1, token::Token::BitAnd, 2),
+            define_infix_test_case!("1 || 2", 1, token::Token::Or, 2),
+            define_infix_test_case!("1 | 2", 1, token::Token::BitOr, 2),
+            define_infix_test_case!("1 == 2", 1, token::Token::Eq, 2),
+            define_infix_test_case!("1 != 2", 1, token::Token::Neq, 2),
+            define_infix_test_case!("1 > 2", 1, token::Token::Gt, 2),
+            define_infix_test_case!("1 < 2", 1, token::Token::Lt, 2),
+            define_infix_test_case!("1 >= 2", 1, token::Token::Ge, 2),
+            define_infix_test_case!("1 <= 2", 1, token::Token::Le, 2),
         ];
         for (source, node) in tests {
             let lex = lexer::Lexer::new(source);
@@ -812,30 +829,43 @@ mod test {
     }
 
     #[test]
-    fn parse_square() {
-        let tests: [(&str, ast::Node); 2] = [
-            (
-                "[1,\"test\",'c',(1+3)*2]",
-                ast::Node::Expression(ast::Expression::Array {
-                    values: vec![
-                        ast::Expression::Integer { value: 1 },
-                        ast::Expression::String {
-                            value: "test".into(),
-                        },
-                        ast::Expression::Char { value: 'c' },
-                        ast::Expression::Infix {
-                            left: ast::Expression::Infix {
-                                left: ast::Expression::Integer { value: 1 }.into(),
-                                op: token::Token::Plus,
-                                right: ast::Expression::Integer { value: 3 }.into(),
-                            }
-                            .into(),
-                            op: token::Token::Asterisk,
-                            right: ast::Expression::Integer { value: 2 }.into(),
-                        },
-                    ],
-                }),
-            ),
+    fn parse_array() {
+        let tests: [(&str, ast::Node); 1] = [(
+            "[1,\"test\",'c',(1+3)*2]",
+            ast::Node::Expression(ast::Expression::Array {
+                values: vec![
+                    ast::Expression::Integer { value: 1 },
+                    ast::Expression::String {
+                        value: "test".into(),
+                    },
+                    ast::Expression::Char { value: 'c' },
+                    ast::Expression::Infix {
+                        left: ast::Expression::Infix {
+                            left: ast::Expression::Integer { value: 1 }.into(),
+                            op: token::Token::Plus,
+                            right: ast::Expression::Integer { value: 3 }.into(),
+                        }
+                        .into(),
+                        op: token::Token::Asterisk,
+                        right: ast::Expression::Integer { value: 2 }.into(),
+                    },
+                ],
+            }),
+        )];
+        for (source, node) in tests {
+            let lex = lexer::Lexer::new(source);
+            let mut parser = Parser::new(lex);
+            let program = parser
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse let stmt: {source}"));
+            assert_eq!(program.statements.len(), 1);
+            assert_eq!(program.statements[0], node)
+        }
+    }
+
+    #[test]
+    fn parse_index() {
+        let tests: [(&str, ast::Node); 5] = [
             (
                 "index[1]",
                 ast::Node::Expression(ast::Expression::Index {
@@ -844,6 +874,68 @@ mod test {
                     }
                     .into(),
                     index: ast::Expression::Integer { value: 1 }.into(),
+                }),
+            ),
+            (
+                "index.name",
+                ast::Node::Expression(ast::Expression::Index {
+                    value: ast::Expression::Identifier {
+                        name: "index".into(),
+                    }
+                    .into(),
+                    index: ast::Expression::Identifier {
+                        name: "name".into(),
+                    }
+                    .into(),
+                }),
+            ),
+            (
+                "index.name + \"test\"",
+                ast::Node::Expression(ast::Expression::Infix {
+                    left: ast::Expression::Index {
+                        value: ast::Expression::Identifier {
+                            name: "index".into(),
+                        }
+                        .into(),
+                        index: ast::Expression::Identifier {
+                            name: "name".into(),
+                        }
+                        .into(),
+                    }
+                    .into(),
+                    right: ast::Expression::String {
+                        value: "test".into(),
+                    }
+                    .into(),
+                    op: token::Token::Plus,
+                }),
+            ),
+            (
+                "index[1][0]",
+                ast::Node::Expression(ast::Expression::Index {
+                    value: ast::Expression::Index {
+                        value: ast::Expression::Identifier {
+                            name: "index".into(),
+                        }
+                        .into(),
+                        index: ast::Expression::Integer { value: 1 }.into(),
+                    }
+                    .into(),
+                    index: ast::Expression::Integer { value: 0 }.into(),
+                }),
+            ),
+            (
+                "index[1].0",
+                ast::Node::Expression(ast::Expression::Index {
+                    value: ast::Expression::Index {
+                        value: ast::Expression::Identifier {
+                            name: "index".into(),
+                        }
+                        .into(),
+                        index: ast::Expression::Integer { value: 1 }.into(),
+                    }
+                    .into(),
+                    index: ast::Expression::Integer { value: 0 }.into(),
                 }),
             ),
         ];

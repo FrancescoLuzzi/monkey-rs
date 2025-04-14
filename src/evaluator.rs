@@ -178,18 +178,44 @@ fn eval_index(
     index: &Expression,
 ) -> Option<Object> {
     let value = eval_expr(env, builtin, value)?;
-    let index = eval_expr(env, builtin, index)?;
-    match (value, index) {
-        (Object::String(s), Object::Integer(n)) => Some(Object::Char(s.chars().nth(n as usize)?)),
-        (Object::Array { values }, Object::Integer(n)) => values.get(n as usize).cloned(),
-        (Object::Dict { values }, obj) => values.get(&obj.as_ref().try_into().ok()?).cloned(),
-        _ => None,
+    match index {
+        Expression::Identifier { name } => {
+            if let Object::Dict { values } = value {
+                values.get(&HashKey::String(name.clone())).cloned()
+            } else {
+                Some(Object::Error(format!(
+                    "can't index '{}' in {}",
+                    name, value
+                )))
+            }
+        }
+        Expression::Integer { value: n } => {
+            if let Object::Dict { values } = value {
+                values.get(&HashKey::Integer(*n)).cloned()
+            } else if let Object::Array { values } = value {
+                values.get(*n as usize).cloned()
+            } else {
+                Some(Object::Error(format!("can't index '{}' in {}", n, value)))
+            }
+        }
+        index => {
+            let index = eval_expr(env, builtin, index)?;
+            match (value, index) {
+                (Object::String(s), Object::Integer(n)) => {
+                    Some(Object::Char(s.chars().nth(n as usize)?))
+                }
+                (Object::Array { values }, Object::Integer(n)) => values.get(n as usize).cloned(),
+                (Object::Dict { values }, obj) => {
+                    values.get(&obj.as_ref().try_into().ok()?).cloned()
+                }
+                _ => None,
+            }
+        }
     }
 }
 
 fn eval_negation(
     env: &Environment,
-
     builtin: &Builtin<Built>,
     expr: &ast::Expression,
 ) -> Option<Object> {
