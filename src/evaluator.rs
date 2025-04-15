@@ -287,9 +287,9 @@ fn eval_infix_sum(
             Some(Object::Float(*f + *i as f64))
         }
         (Object::Float(n), Object::Float(m)) => Some(Object::Float(n + m)),
-        (Object::String(_), _) | (_, Object::String(_)) => {
-            Some(Object::String(format!("{left}{right}")))
-        }
+        (Object::String(s1), Object::String(s2)) => Some(Object::String(format!("{s1}{s2}"))),
+        (Object::String(s), obj) => Some(Object::String(format!("{s}{obj}"))),
+        (obj, Object::String(s)) => Some(Object::String(format!("{obj}{s}"))),
         (Object::Array { values: v1 }, Object::Array { values: v2 }) => {
             let v_out = v1.iter().chain(v2.iter()).cloned().collect();
             Some(Object::Array { values: v_out })
