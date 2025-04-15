@@ -1,6 +1,6 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
-use crate::{ast, environment::Environment};
+use crate::{ast, builtin::BuiltinFunction, environment::Environment};
 
 #[derive(Clone, derive_more::Display, derive_more::Debug)]
 pub enum Object {
@@ -33,6 +33,11 @@ pub enum Object {
         parameters: Vec<String>,
         body: ast::Block,
         scoped_env: Environment,
+    },
+    #[display("<builtin>")]
+    #[debug("<builtin>")]
+    BuiltinFunction {
+        handler: Arc<BuiltinFunction>,
     },
 }
 
@@ -112,7 +117,7 @@ impl Object {
             Object::String(s) => s.chars().all(char::is_whitespace),
             Object::Char(c) => *c != '\0' && *c != ' ',
             Object::Error(_) => false,
-            Object::Function { .. } => true,
+            Object::Function { .. } | Object::BuiltinFunction { .. } => true,
             Object::Array { values } => !values.is_empty(),
             Object::Dict { values } => !values.is_empty(),
         }

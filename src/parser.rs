@@ -405,12 +405,7 @@ impl<'a> Parser<'a> {
         if !matches!(token, Token::Lparen) {
             panic!("Lparen expected to parse_call")
         }
-        let function = if let ast::Expression::Identifier { name } = left {
-            name
-        } else {
-            return None;
-        };
-
+        let function = Box::new(left);
         let mut parameters = Vec::new();
         if matches!(self.lexer.peek()?, Token::Rparen) {
             self.next_token()?;
@@ -580,7 +575,10 @@ mod test {
                 ast::Node::Let {
                     name: "res".into(),
                     value: ast::Expression::Call {
-                        function: "test".into(),
+                        function: ast::Expression::Identifier {
+                            name: "test".into(),
+                        }
+                        .into(),
                         parameters: Vec::new(),
                     },
                 },
@@ -590,7 +588,10 @@ mod test {
                 ast::Node::Let {
                     name: "res".into(),
                     value: ast::Expression::Call {
-                        function: "test".into(),
+                        function: ast::Expression::Identifier {
+                            name: "test".into(),
+                        }
+                        .into(),
                         parameters: vec![
                             ast::Expression::Identifier { name: "a".into() },
                             ast::Expression::Infix {
@@ -866,7 +867,7 @@ mod test {
 
     #[test]
     fn parse_index() {
-        let tests: [(&str, ast::Node); 5] = [
+        let tests: [(&str, ast::Node); 7] = [
             (
                 "index[1]",
                 ast::Node::Expression(ast::Expression::Index {
@@ -875,6 +876,20 @@ mod test {
                     }
                     .into(),
                     index: ast::Expression::Integer { value: 1 }.into(),
+                }),
+            ),
+            (
+                "index[1]()",
+                ast::Node::Expression(ast::Expression::Call {
+                    function: ast::Expression::Index {
+                        value: ast::Expression::Identifier {
+                            name: "index".into(),
+                        }
+                        .into(),
+                        index: ast::Expression::Integer { value: 1 }.into(),
+                    }
+                    .into(),
+                    parameters: vec![],
                 }),
             ),
             (
@@ -888,6 +903,23 @@ mod test {
                         name: "name".into(),
                     }
                     .into(),
+                }),
+            ),
+            (
+                "index.name()",
+                ast::Node::Expression(ast::Expression::Call {
+                    function: ast::Expression::Index {
+                        value: ast::Expression::Identifier {
+                            name: "index".into(),
+                        }
+                        .into(),
+                        index: ast::Expression::Identifier {
+                            name: "name".into(),
+                        }
+                        .into(),
+                    }
+                    .into(),
+                    parameters: vec![],
                 }),
             ),
             (

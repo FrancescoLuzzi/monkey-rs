@@ -62,7 +62,7 @@ pub enum Expression {
         index: Box<Expression>,
     },
     Call {
-        function: String,
+        function: Box<Expression>,
         parameters: Vec<Expression>,
     },
     If {

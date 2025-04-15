@@ -87,8 +87,13 @@ pub fn eval_expr(
     match expr {
         ast::Expression::Null => Some(Object::Null),
         ast::Expression::Identifier { name } => Some(
-            env.get(name)
-                .unwrap_or(Object::Error(format!("{name} not yet defined"))),
+            builtin
+                .get(name)
+                .map(|handler| Object::BuiltinFunction { handler })
+                .unwrap_or(
+                    env.get(name)
+                        .unwrap_or(Object::Error(format!("{name} not yet defined"))),
+                ),
         ),
         ast::Expression::Integer { value } => Some(Object::Integer(*value)),
         ast::Expression::Float { value } => Some(Object::Float(*value)),
@@ -137,38 +142,43 @@ fn eval_if(
 fn eval_call(
     env: &Environment,
     builtin: &Builtin<Built>,
-    function: &str,
+    function: &ast::Expression,
     call_parameters: &[ast::Expression],
 ) -> Option<Object> {
-    if let Ok(handler) = builtin.get(function) {
-        let mut params = Vec::new();
-        for param in call_parameters.iter() {
-            params.push(eval_expr(env, builtin, param)?);
-        }
-        Some(handler(&mut params))
-    } else if let Some(Object::Function {
-        parameters,
-        body,
-        scoped_env,
-    }) = env.get(function)
-    {
-        if parameters.len() != call_parameters.len() {
-            return None;
-        }
-        for (param_name, param_value) in parameters.iter().zip(
-            call_parameters
-                .iter()
-                .map(|expr| eval_expr(env, builtin, expr)),
-        ) {
-            let param_value = param_value?;
-            if matches!(param_value, Object::Error(_)) {
-                return Some(param_value);
+    let function = eval_expr(env, builtin, function)?;
+    if matches!(function, Object::Error(_)) {
+        return Some(function);
+    }
+    match &function {
+        Object::Function {
+            parameters,
+            body,
+            scoped_env,
+        } => {
+            if parameters.len() != call_parameters.len() {
+                return None;
             }
-            scoped_env.set(param_name, param_value);
+            for (param_name, param_value) in parameters.iter().zip(
+                call_parameters
+                    .iter()
+                    .map(|expr| eval_expr(env, builtin, expr)),
+            ) {
+                let param_value = param_value?;
+                if matches!(param_value, Object::Error(_)) {
+                    return Some(param_value);
+                }
+                scoped_env.set(param_name, param_value);
+            }
+            eval_statements(scoped_env, builtin, &body.statements)
         }
-        eval_statements(&scoped_env, builtin, &body.statements)
-    } else {
-        None
+        Object::BuiltinFunction { handler } => {
+            let mut params = Vec::new();
+            for param in call_parameters.iter() {
+                params.push(eval_expr(env, builtin, param)?);
+            }
+            Some(handler(&mut params))
+        }
+        _ => Some(Object::Error(format!("{} is not callable", function))),
     }
 }
 
