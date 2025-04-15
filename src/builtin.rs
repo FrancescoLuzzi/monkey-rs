@@ -5,12 +5,8 @@ use std::{
     collections::BTreeMap,
     error::Error,
     io::{Write, stdout},
-    marker::PhantomData,
     sync::Arc,
 };
-
-pub struct Builder;
-pub struct Built;
 
 pub type BuiltinFunction = dyn Fn(&mut [Object]) -> Object;
 
@@ -21,16 +17,18 @@ pub enum BuiltinError {
 
 impl Error for BuiltinError {}
 
-pub struct Builtin<T> {
+pub struct BuiltinBuilder {
     builtins: BTreeMap<String, Arc<BuiltinFunction>>,
-    status: PhantomData<T>,
 }
 
-impl Builtin<Builder> {
+pub struct Builtin {
+    builtins: BTreeMap<String, Arc<BuiltinFunction>>,
+}
+
+impl BuiltinBuilder {
     pub fn new() -> Self {
         Self {
             builtins: BTreeMap::new(),
-            status: PhantomData,
         }
     }
 
@@ -39,15 +37,14 @@ impl Builtin<Builder> {
     }
 
     #[must_use]
-    pub fn build(self) -> Builtin<Built> {
+    pub fn build(self) -> Builtin {
         Builtin {
             builtins: self.builtins,
-            status: PhantomData,
         }
     }
 }
 
-impl Default for Builtin<Builder> {
+impl Default for BuiltinBuilder {
     fn default() -> Self {
         let mut builtins = Self::new();
         builtins.add(
@@ -134,7 +131,7 @@ impl Default for Builtin<Builder> {
     }
 }
 
-impl Builtin<Built> {
+impl Builtin {
     pub fn call(&self, name: &str, args: &mut [Object]) -> Result<Object, BuiltinError> {
         let handler = self.builtins.get(name).ok_or(BuiltinError::NotFound)?;
         Ok(handler(args))

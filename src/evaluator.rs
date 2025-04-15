@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{self, Expression},
-    builtin::{Built, Builtin},
+    builtin::Builtin,
     environment::Environment,
     objects::{HashKey, Object},
     token,
@@ -10,7 +10,7 @@ use crate::{
 
 pub fn eval_program(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     program: &ast::Program,
 ) -> Option<Object> {
     eval_statements(env, builtin, &program.statements)
@@ -18,7 +18,7 @@ pub fn eval_program(
 
 fn eval_statements(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     statements: &[ast::Node],
 ) -> Option<Object> {
     let mut result = Object::Null;
@@ -33,7 +33,7 @@ fn eval_statements(
 
 fn eval_array(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     expressions: &[ast::Expression],
 ) -> Option<Object> {
     let mut values = Vec::new();
@@ -49,7 +49,7 @@ fn eval_array(
 
 fn eval_dict(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     key_values: &[(ast::Expression, ast::Expression)],
 ) -> Option<Object> {
     let mut values: HashMap<HashKey, Object> = HashMap::new();
@@ -67,7 +67,7 @@ fn eval_dict(
     Some(Object::Dict { values })
 }
 
-pub fn eval_node(env: &Environment, builtin: &Builtin<Built>, node: &ast::Node) -> Option<Object> {
+pub fn eval_node(env: &Environment, builtin: &Builtin, node: &ast::Node) -> Option<Object> {
     match node {
         ast::Node::Let { name, value } => {
             let value = eval_expr(env, builtin, value)?;
@@ -79,11 +79,7 @@ pub fn eval_node(env: &Environment, builtin: &Builtin<Built>, node: &ast::Node) 
     }
 }
 
-pub fn eval_expr(
-    env: &Environment,
-    builtin: &Builtin<Built>,
-    expr: &ast::Expression,
-) -> Option<Object> {
+pub fn eval_expr(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -> Option<Object> {
     match expr {
         ast::Expression::Null => Some(Object::Null),
         ast::Expression::Identifier { name } => Some(
@@ -126,7 +122,7 @@ pub fn eval_expr(
 
 fn eval_if(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     condition: &ast::Expression,
     consequence: &ast::Block,
     alternative: Option<&ast::Block>,
@@ -141,7 +137,7 @@ fn eval_if(
 
 fn eval_call(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     function: &ast::Expression,
     call_parameters: &[ast::Expression],
 ) -> Option<Object> {
@@ -184,7 +180,7 @@ fn eval_call(
 
 fn eval_index(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     value: &Expression,
     index: &Expression,
 ) -> Option<Object> {
@@ -225,20 +221,12 @@ fn eval_index(
     }
 }
 
-fn eval_negation(
-    env: &Environment,
-    builtin: &Builtin<Built>,
-    expr: &ast::Expression,
-) -> Option<Object> {
+fn eval_negation(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -> Option<Object> {
     let object = eval_expr(env, builtin, expr)?;
     Some(Object::Bool(object.is_truthy()))
 }
 
-fn eval_minus(
-    env: &Environment,
-    builtin: &Builtin<Built>,
-    expr: &ast::Expression,
-) -> Option<Object> {
+fn eval_minus(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -> Option<Object> {
     match eval_expr(env, builtin, expr)? {
         Object::Bool(b) => Some(Object::Integer(-(b as i64))),
         Object::Integer(n) => Some(Object::Integer(-n)),
@@ -249,7 +237,7 @@ fn eval_minus(
 
 fn eval_infix(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     left: &ast::Expression,
     op: &token::Token,
     right: &ast::Expression,
@@ -275,7 +263,7 @@ fn eval_infix(
 
 fn eval_infix_sum(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
@@ -300,7 +288,7 @@ fn eval_infix_sum(
 
 fn eval_infix_minus(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
@@ -318,7 +306,7 @@ fn eval_infix_minus(
 
 fn eval_infix_slash(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
@@ -336,7 +324,7 @@ fn eval_infix_slash(
 
 fn eval_infix_mul(
     env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
     left: &ast::Expression,
     right: &ast::Expression,
 ) -> Option<Object> {
@@ -369,7 +357,7 @@ macro_rules! define_infix_bool_evaluator {
     ($func_name:ident, $operator:tt) => {
         fn $func_name(
             env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
             left: &ast::Expression,
             right: &ast::Expression,
         ) -> Option<Object> {
@@ -387,7 +375,7 @@ macro_rules! define_infix_obj_eq {
     ($func_name:ident, $operator:tt) => {
         fn $func_name(
             env: &Environment,
-    builtin: &Builtin<Built>,
+    builtin: &Builtin,
             left: &ast::Expression,
             right: &ast::Expression,
         ) -> Option<Object> {
@@ -404,7 +392,7 @@ macro_rules! define_infix_bool_comparison {
     ($func_name:ident, $operator:tt) => {
         fn $func_name(
             env: &Environment,
-            builtin: &Builtin<Built>,
+            builtin: &Builtin,
             left: &ast::Expression,
             right: &ast::Expression,
         ) -> Option<Object> {
@@ -427,7 +415,7 @@ macro_rules! define_infix_bit_operator {
     ($func_name:ident, $operator:tt) => {
         fn $func_name(
             env: &Environment,
-            builtin: &Builtin<Built>,
+            builtin: &Builtin,
             left: &ast::Expression,
             right: &ast::Expression,
         ) -> Option<Object> {
@@ -442,3 +430,59 @@ macro_rules! define_infix_bit_operator {
 }
 define_infix_bit_operator!(eval_infix_bit_and,&);
 define_infix_bit_operator!(eval_infix_bit_or,|);
+
+#[cfg(test)]
+mod test {
+    use super::eval_program;
+    use crate::{
+        builtin::BuiltinBuilder, environment::Environment, lexer::Lexer, objects::Object,
+        parser::Parser,
+    };
+
+    #[test]
+    fn test_eval_programs() {
+        let tests: [(&str, Object); 15] = [
+            ("let test = 3; test", Object::Integer(3)),
+            ("let test = 3.3; test", Object::Float(3.3)),
+            ("let test = \"test\"; test", Object::String("test".into())),
+            ("let test = 'c'; test", Object::Char('c')),
+            ("let test = true; test", Object::Bool(true)),
+            ("let test = false; test", Object::Bool(false)),
+            ("let test = null; test", Object::Null),
+            (
+                "let test = fn(){\"test\"}; test()",
+                Object::String("test".into()),
+            ),
+            (
+                "let test = [3,'c']; test",
+                Object::Array {
+                    values: vec![Object::Integer(3), Object::Char('c')],
+                },
+            ),
+            (
+                "let test = {\"test\": fn(){\"test\"}}; test[\"test\"]()",
+                Object::String("test".into()),
+            ),
+            (
+                "let test = {\"test\": fn(a){a}}; test.test(\"test\")",
+                Object::String("test".into()),
+            ),
+            ("let test = [3,'c']; first(test)", Object::Integer(3)),
+            ("let test = 1 | 2; test", Object::Integer(3)),
+            ("let test = 5 & 2; test", Object::Integer(0)),
+            ("if(true) true else false", Object::Bool(true)),
+        ];
+        let builtin = BuiltinBuilder::default().build();
+        for (source, obj) in tests {
+            dbg!(source);
+            let program = Parser::new(Lexer::new(source))
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse program: {source}"));
+
+            let env = Environment::new();
+            let output = eval_program(&env, &builtin, &program)
+                .unwrap_or_else(|| panic!("evaluation errored {source}"));
+            assert_eq!(output, obj)
+        }
+    }
+}
