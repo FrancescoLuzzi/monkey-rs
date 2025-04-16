@@ -16,6 +16,8 @@ setup-dev:
 build-repl:
     @cargo build --release -p monkey-repl
 
-wasm-example:
+build-pages:
     @wasm-pack build --target web examples/monkey-wasm
-    @python -m http.server --directory examples/monkey-wasm
+    @mkdir pages
+    @cp -r examples/monkey-wasm/pkg pages/
+    @cp -r examples/monkey-wasm/index.html pages/
