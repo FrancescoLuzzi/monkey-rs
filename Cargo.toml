@@ -1,7 +1,9 @@
-[package]
-name = "monkey"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["crates/monkey-*"]
+# Only check / build main crates by default (check all with `--workspace`)
+default-members = []
+exclude = ["examples/monkey-wasm"]
+resolver = "2"
 
-[dependencies]
+[workspace.dependencies]
 derive_more = { version = "2.0.1", features = ["display", "debug"] }

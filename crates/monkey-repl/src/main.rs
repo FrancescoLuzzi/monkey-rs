@@ -1,11 +1,13 @@
-use crate::{
+use monkey_core::{
     builtin, environment::Environment, evaluator::eval_program, lexer::Lexer, parser::Parser,
 };
-use std::io::{self, BufRead, Write};
+use std::io;
 
-pub fn start(mut input: impl BufRead, mut output: impl Write) -> io::Result<()> {
+const PROMPT: &[u8; 3] = b">> ";
+
+pub fn start(mut input: impl io::BufRead, mut output: impl io::Write) -> io::Result<()> {
     let mut buff = String::new();
-    output.write_all(b">>")?;
+    output.write_all(PROMPT)?;
     output.flush()?;
     let env = Environment::new();
     let builtins = builtin::BuiltinBuilder::default().build();
@@ -22,9 +24,16 @@ pub fn start(mut input: impl BufRead, mut output: impl Write) -> io::Result<()> 
             )
             .ok_or(io::Error::new(io::ErrorKind::Other, "error eval"))?
         ))?;
-        output.write_all(b">>")?;
+        output.write_all(PROMPT)?;
         output.flush()?;
         buff.clear();
     }
     Ok(())
+}
+
+fn main() {
+    let stdin = io::BufReader::new(io::stdin());
+    let stdout = io::stdout();
+
+    start(stdin, stdout).unwrap();
 }
