@@ -157,7 +157,7 @@ fn eval_call(
             for (param_name, param_value) in parameters.iter().zip(
                 call_parameters
                     .iter()
-                    .map(|expr| eval_expr(env, builtin, expr)),
+                    .map(|expr| eval_expr(scoped_env, builtin, expr)),
             ) {
                 let param_value = param_value?;
                 if matches!(param_value, Object::Error(_)) {
@@ -472,6 +472,30 @@ mod test {
             ("let test = 5 & 2; test", Object::Integer(0)),
             ("if(true) true else false", Object::Bool(true)),
         ];
+        let builtin = BuiltinBuilder::default().build();
+        for (source, obj) in tests {
+            dbg!(source);
+            let program = Parser::new(Lexer::new(source))
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse program: {source}"));
+
+            let env = Environment::new();
+            let output = eval_program(&env, &builtin, &program)
+                .unwrap_or_else(|| panic!("evaluation errored {source}"));
+            assert_eq!(output, obj)
+        }
+    }
+
+    #[test]
+    fn test_eval_nested_closures() {
+        let tests: [(&str, Object); 1] = [(
+            r#"let action = fn(verb) {
+                    fn(name){verb + " " + name}
+                }
+                let hello_fn = action("hello")
+                hello_fn("friend")"#,
+            Object::String("hello friend".into()),
+        )];
         let builtin = BuiltinBuilder::default().build();
         for (source, obj) in tests {
             dbg!(source);
