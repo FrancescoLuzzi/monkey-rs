@@ -1,0 +1,25 @@
+name: Test Monkey
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "!examples/**
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.workflow_ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Just
+        uses: extractions/setup-just@v2
+      
+      - name: Test
+        run: just test-all
