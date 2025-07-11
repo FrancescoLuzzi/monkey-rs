@@ -145,8 +145,14 @@ impl<'a> Lexer<'a> {
                 buf.push(ch);
             } else if ch == '.' {
                 self.read_char();
-                buf.push(ch);
-                has_dot = true;
+                if let Some(num) = self.peek_char() {
+                    if num.is_ascii_digit() {
+                        buf.push(ch);
+                        has_dot = true;
+                    } else {
+                        break;
+                    }
+                }
             } else {
                 break;
             }
