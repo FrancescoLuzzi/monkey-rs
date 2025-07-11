@@ -1,4 +1,4 @@
-name: Deploy Monkye pages
+name: Deploy Monkey pages
 
 on:
   push:
@@ -24,15 +24,15 @@ jobs:
 
       - uses: extractions/setup-just@v3
 
-      - name: Install dev deps
-        run: just setup-dev
+      - name: Install github pages deps
+        run: just setup-github-pages
 
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
 
       - name: Building pages
-        run: just build-pages
+        run: just build-github-pages
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

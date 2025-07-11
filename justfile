@@ -10,13 +10,13 @@ test-all:
 repl:
     @cargo run -p cargo-repl
 
-setup-dev:
-    @cargo install wasm-pack
-
 build-repl:
     @cargo build --release -p monkey-repl
 
-build-pages:
+setup-github-pages:
+    @cargo install wasm-pack
+
+build-github-pages:
     @wasm-pack build --target web examples/monkey-wasm
     @mkdir pages
     @cp -r examples/monkey-wasm/pkg pages/
