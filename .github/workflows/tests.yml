@@ -3,8 +3,6 @@ name: Test Monkey
 on:
   push:
     branches: [main]
-    paths:
-      - "!examples/**"
   workflow_dispatch:
 
 concurrency:
