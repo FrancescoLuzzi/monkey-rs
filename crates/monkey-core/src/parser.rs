@@ -833,7 +833,7 @@ mod test {
     #[test]
     fn parse_array() {
         let tests: [(&str, ast::Node); 1] = [(
-            "[1,\"test\",'c',(1+3)*2]",
+            r#"[1,"test",'c',(1+3)*2,fn(test){" "+test}]"#,
             ast::Node::Expression(ast::Expression::Array {
                 values: vec![
                     ast::Expression::Integer { value: 1 },
@@ -851,6 +851,73 @@ mod test {
                         op: token::Token::Asterisk,
                         right: ast::Expression::Integer { value: 2 }.into(),
                     },
+                    ast::Expression::Function {
+                        parameters: vec!["test".into()],
+                        body: ast::Block {
+                            statements: vec![ast::Node::Expression(ast::Expression::Infix {
+                                left: ast::Expression::String { value: " ".into() }.into(),
+                                right: ast::Expression::Identifier {
+                                    name: "test".into(),
+                                }
+                                .into(),
+                                op: token::Token::Plus,
+                            })],
+                        },
+                    },
+                ],
+            }),
+        )];
+        for (source, node) in tests {
+            let lex = lexer::Lexer::new(source);
+            let mut parser = Parser::new(lex);
+            let program = parser
+                .parse_program()
+                .unwrap_or_else(|| panic!("couldn't parse let stmt: {source}"));
+            assert_eq!(program.statements.len(), 1);
+            assert_eq!(program.statements[0], node)
+        }
+    }
+
+    #[test]
+    fn parse_dict() {
+        let tests: [(&str, ast::Node); 1] = [(
+            r#"{1 : 1, "test": "test", 'c': 'c', "func": fn(test){" "+test} }"#,
+            ast::Node::Expression(ast::Expression::Dict {
+                values: vec![
+                    (
+                        ast::Expression::Integer { value: 1 },
+                        ast::Expression::Integer { value: 1 },
+                    ),
+                    (
+                        ast::Expression::String {
+                            value: "test".into(),
+                        },
+                        ast::Expression::String {
+                            value: "test".into(),
+                        },
+                    ),
+                    (
+                        ast::Expression::Char { value: 'c' },
+                        ast::Expression::Char { value: 'c' },
+                    ),
+                    (
+                        ast::Expression::String {
+                            value: "func".into(),
+                        },
+                        ast::Expression::Function {
+                            parameters: vec!["test".into()],
+                            body: ast::Block {
+                                statements: vec![ast::Node::Expression(ast::Expression::Infix {
+                                    left: ast::Expression::String { value: " ".into() }.into(),
+                                    right: ast::Expression::Identifier {
+                                        name: "test".into(),
+                                    }
+                                    .into(),
+                                    op: token::Token::Plus,
+                                })],
+                            },
+                        },
+                    ),
                 ],
             }),
         )];
@@ -867,7 +934,7 @@ mod test {
 
     #[test]
     fn parse_index() {
-        let tests: [(&str, ast::Node); 7] = [
+        let tests: [(&str, ast::Node); 9] = [
             (
                 "index[1]",
                 ast::Node::Expression(ast::Expression::Index {
@@ -890,6 +957,22 @@ mod test {
                     }
                     .into(),
                     parameters: vec![],
+                }),
+            ),
+            (
+                r#"index[1]("test")"#,
+                ast::Node::Expression(ast::Expression::Call {
+                    function: ast::Expression::Index {
+                        value: ast::Expression::Identifier {
+                            name: "index".into(),
+                        }
+                        .into(),
+                        index: ast::Expression::Integer { value: 1 }.into(),
+                    }
+                    .into(),
+                    parameters: vec![ast::Expression::String {
+                        value: "test".into(),
+                    }],
                 }),
             ),
             (
@@ -920,6 +1003,22 @@ mod test {
                     }
                     .into(),
                     parameters: vec![],
+                }),
+            ),
+            (
+                r#"index.1.("test")"#,
+                ast::Node::Expression(ast::Expression::Call {
+                    function: ast::Expression::Index {
+                        value: ast::Expression::Identifier {
+                            name: "index".into(),
+                        }
+                        .into(),
+                        index: ast::Expression::Integer { value: 1 }.into(),
+                    }
+                    .into(),
+                    parameters: vec![ast::Expression::String {
+                        value: "test".into(),
+                    }],
                 }),
             ),
             (
