@@ -8,7 +8,7 @@ test-all:
     @cargo test --workspace
 
 repl:
-    @cargo run -p cargo-repl
+    @cargo run -p monkey-repl
 
 build-repl:
     @cargo build --release -p monkey-repl
