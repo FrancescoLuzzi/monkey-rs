@@ -59,16 +59,7 @@ impl PartialOrd for Object {
             (Object::Char(c), Object::Integer(n)) => (*c as i64).partial_cmp(n),
             (Object::Char(c0), Object::Char(c1)) => c0.partial_cmp(c1),
             (Object::Array { values: arr0 }, Object::Array { values: arr1 }) => {
-                let cmp = arr0
-                    .iter()
-                    .zip(arr1.iter())
-                    .map(|(x0, x1)| x0.partial_cmp(x1))
-                    .find(|x| x != &Some(Ordering::Equal));
-                if let Some(cmp) = cmp {
-                    cmp
-                } else {
-                    arr0.len().partial_cmp(&arr1.len())
-                }
+                arr0.iter().partial_cmp(arr1.iter())
             }
             _ => None,
         }
@@ -144,6 +135,14 @@ impl TryFrom<&Object> for HashKey {
                 std::mem::discriminant(value)
             )),
         }
+    }
+}
+
+impl TryFrom<&mut Object> for HashKey {
+    type Error = String;
+
+    fn try_from(value: &mut Object) -> Result<Self, Self::Error> {
+        (value as &Object).try_into()
     }
 }
 
