@@ -12,10 +12,7 @@ pub struct MonkeyState {
 impl MonkeyState {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        Self {
-            env: monkey_core::environment::Environment::new(),
-            builtins: monkey_core::builtin::BuiltinBuilder::default().build(),
-        }
+        Default::default()
     }
 
     #[wasm_bindgen]
@@ -23,7 +20,16 @@ impl MonkeyState {
         let mut parser = monkey_core::parser::Parser::new(monkey_core::lexer::Lexer::new(input));
         let program = parser.parse_program().ok_or("Error parsing".to_string())?;
         monkey_core::evaluator::eval_program(&self.env, &self.builtins, &program)
-            .ok_or("Error parsing".to_string())
+            .ok_or("Error evaluating".to_string())
             .map(|x| x.to_string())
+    }
+}
+
+impl Default for MonkeyState {
+    fn default() -> Self {
+        Self {
+            env: monkey_core::environment::Environment::new(),
+            builtins: monkey_core::builtin::BuiltinBuilder::default().build(),
+        }
     }
 }
