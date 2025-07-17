@@ -1,6 +1,6 @@
 use derive_more::Display;
 
-use crate::objects::Object;
+use crate::objects::{HashKey, Object};
 use std::{
     collections::BTreeMap,
     error::Error,
@@ -114,6 +114,69 @@ impl Default for BuiltinBuilder {
                     }
                 } else {
                     Object::Error("push first argument must be an array".into())
+                }
+            }),
+        );
+        builtins.add(
+            "insert",
+            Arc::new(|args: &mut [Object]| {
+                if args.len() < 2 || args.len() > 3 {
+                    return Object::Error("insert accepts at least two argument, max three".into());
+                }
+                let mut args = args.iter_mut();
+                let object = args.next().unwrap();
+                match object {
+                    Object::Array { values } => match (args.next(), args.next()) {
+                        (Some(o), None) => {
+                            values.insert(0, o.clone());
+                            Object::Array {
+                                values: values.to_vec(),
+                            }
+                        }
+                        (Some(o), Some(index_object)) => {
+                            if let Object::Integer(index) = index_object {
+                                let mut index = *index;
+                                if index < 0 {
+                                    index = values.len() as i64 - index;
+                                }
+                                if index < 0 {
+                                    Object::Error(format!("index '{}' out of range", index))
+                                } else {
+                                    values.insert(index as usize, o.clone());
+                                    Object::Array {
+                                        values: values.to_vec(),
+                                    }
+                                }
+                            } else {
+                                Object::Error(format!(
+                                    "can't index array with object '{}'",
+                                    index_object
+                                ))
+                            }
+                        }
+                        (None, _) => panic!("first argument was None, this is impossible"),
+                    },
+                    Object::Dict { values } => match (args.next(), args.next()) {
+                        (Some(o), Some(index_object)) => {
+                            let key_result = HashKey::try_from(index_object).map_err(Object::Error);
+                            if let Ok(key) = key_result {
+                                values.insert(key, o.clone());
+                                Object::Dict {
+                                    values: values.to_owned(),
+                                }
+                            } else {
+                                key_result.unwrap_err()
+                            }
+                        }
+                        (_, None) => Object::Error("Missing argument".into()),
+                        (None, _) => {
+                            panic!("first argument was None, this is impossible")
+                        }
+                    },
+                    _ => Object::Error(format!(
+                        "insert's first argument type {} not supported",
+                        object
+                    )),
                 }
             }),
         );
