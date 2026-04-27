@@ -13,6 +13,9 @@ repl:
 build-repl:
     @cargo build --release -p monkey-repl
 
+bench-fibonacci:
+    @cargo bench -p monkey-core --bench fibonacci
+
 setup-github-pages:
     @cargo install wasm-pack
 
