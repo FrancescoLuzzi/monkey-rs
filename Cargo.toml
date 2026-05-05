@@ -1,9 +1,8 @@
 [workspace]
-members = ["crates/monkey-*"]
+members = ["crates/monkey-*", "examples/monkey-wasm"]
 # Only check / build main crates by default (check all with `--workspace`)
-default-members = []
-exclude = ["examples/monkey-wasm"]
+default-members = ["crates/monkey-core", "crates/monkey-repl"]
 resolver = "2"
 
 [workspace.dependencies]
-derive_more = { version = "2.0.1", features = ["display", "debug"] }
+derive_more = { version = "2.1.1", features = ["display", "debug"] }
