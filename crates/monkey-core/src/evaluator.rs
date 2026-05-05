@@ -21,7 +21,7 @@ fn eval_statements(
     builtin: &Builtin,
     statements: &[ast::Node],
 ) -> Option<Object> {
-    let mut result = Object::Null;
+    let mut result = Object::null();
     for node in statements.iter() {
         result = eval_node(env, builtin, node)?;
         if matches!(result, Object::Error(_)) {
@@ -44,7 +44,7 @@ fn eval_array(
         }
         values.push(tmp_val);
     }
-    Some(Object::Array { values })
+    Some(Object::array(values))
 }
 
 fn eval_dict(
@@ -64,7 +64,7 @@ fn eval_dict(
         }
         values.insert(key.as_ref().try_into().ok()?, value);
     }
-    Some(Object::Dict { values })
+    Some(Object::dict(values))
 }
 
 pub fn eval_node(env: &Environment, builtin: &Builtin, node: &ast::Node) -> Option<Object> {
@@ -72,7 +72,7 @@ pub fn eval_node(env: &Environment, builtin: &Builtin, node: &ast::Node) -> Opti
         ast::Node::Let { name, value } => {
             let value = eval_expr(env, builtin, value)?;
             env.set(name, value);
-            Some(Object::Null)
+            Some(Object::null())
         }
         ast::Node::Return { value } => eval_expr(env, builtin, value),
         ast::Node::Expression(expression) => eval_expr(env, builtin, expression),
@@ -81,31 +81,30 @@ pub fn eval_node(env: &Environment, builtin: &Builtin, node: &ast::Node) -> Opti
 
 pub fn eval_expr(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -> Option<Object> {
     match expr {
-        ast::Expression::Null => Some(Object::Null),
+        ast::Expression::Null => Some(Object::null()),
         ast::Expression::Identifier { name } => Some(
             builtin
                 .get(name)
-                .map(|handler| Object::BuiltinFunction { handler })
-                .unwrap_or(
-                    env.get(name)
-                        .unwrap_or(Object::Error(format!("{name} not yet defined"))),
-                ),
+                .map(Object::builtin_function)
+                .unwrap_or(env.get(name).unwrap_or(Object::error(format!(
+                    "{name} not yet defined"
+                )))),
         ),
-        ast::Expression::Integer { value } => Some(Object::Integer(*value)),
-        ast::Expression::Float { value } => Some(Object::Float(*value)),
-        ast::Expression::String { value } => Some(Object::String(value.clone())),
-        ast::Expression::Bool { value } => Some(Object::Bool(*value)),
-        ast::Expression::Char { value } => Some(Object::Char(*value)),
+        ast::Expression::Integer { value } => Some(Object::integer(*value)),
+        ast::Expression::Float { value } => Some(Object::float(*value)),
+        ast::Expression::String { value } => Some(Object::string(value.clone())),
+        ast::Expression::Bool { value } => Some(Object::bool(*value)),
+        ast::Expression::Char { value } => Some(Object::char(*value)),
         ast::Expression::Negated { value } => eval_negation(env, builtin, value),
         ast::Expression::Minus { value } => eval_minus(env, builtin, value),
         ast::Expression::Block { value } => eval_statements(env, builtin, &value.statements),
         ast::Expression::Array { values } => eval_array(env, builtin, values),
         ast::Expression::Dict { values } => eval_dict(env, builtin, values),
-        ast::Expression::Function { parameters, body } => Some(Object::Function {
-            parameters: parameters.clone(),
-            body: body.clone(),
-            scoped_env: env.new_derived_env(),
-        }),
+        ast::Expression::Function { parameters, body } => Some(Object::function(
+            parameters.clone(),
+            body.clone(),
+            env.new_derived_env(),
+        )),
         ast::Expression::Index { value, index } => eval_index(env, builtin, value, index),
         ast::Expression::Call {
             function,
@@ -174,7 +173,7 @@ fn eval_call(
             }
             Some(handler(&mut params))
         }
-        _ => Some(Object::Error(format!("{} is not callable", function))),
+        _ => Some(Object::error(format!("{} is not callable", function))),
     }
 }
 
@@ -190,7 +189,7 @@ fn eval_index(
             if let Object::Dict { values } = value {
                 values.get(&HashKey::String(name.clone())).cloned()
             } else {
-                Some(Object::Error(format!(
+                Some(Object::error(format!(
                     "can't index '{}' in {}",
                     name, value
                 )))
@@ -202,14 +201,14 @@ fn eval_index(
             } else if let Object::Array { values } = value {
                 values.get(*n as usize).cloned()
             } else {
-                Some(Object::Error(format!("can't index '{}' in {}", n, value)))
+                Some(Object::error(format!("can't index '{}' in {}", n, value)))
             }
         }
         index => {
             let index = eval_expr(env, builtin, index)?;
             match (value, index) {
                 (Object::String(s), Object::Integer(n)) => {
-                    Some(Object::Char(s.chars().nth(n as usize)?))
+                    Some(Object::char(s.chars().nth(n as usize)?))
                 }
                 (Object::Array { values }, Object::Integer(n)) => values.get(n as usize).cloned(),
                 (Object::Dict { values }, obj) => {
@@ -223,14 +222,14 @@ fn eval_index(
 
 fn eval_negation(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -> Option<Object> {
     let object = eval_expr(env, builtin, expr)?;
-    Some(Object::Bool(object.is_truthy()))
+    Some(Object::bool(object.is_truthy()))
 }
 
 fn eval_minus(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -> Option<Object> {
     match eval_expr(env, builtin, expr)? {
-        Object::Bool(b) => Some(Object::Integer(-(b as i64))),
-        Object::Integer(n) => Some(Object::Integer(-n)),
-        Object::Float(n) => Some(Object::Float(-n)),
+        Object::Bool(b) => Some(Object::integer(-(b as i64))),
+        Object::Integer(n) => Some(Object::integer(-n)),
+        Object::Float(n) => Some(Object::float(-n)),
         _ => None,
     }
 }
@@ -270,17 +269,17 @@ fn eval_infix_sum(
     let left = eval_expr(env, builtin, left)?;
     let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
-        (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n + m)),
+        (Object::Integer(n), Object::Integer(m)) => Some(Object::integer(n + m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
-            Some(Object::Float(*f + *i as f64))
+            Some(Object::float(*f + *i as f64))
         }
-        (Object::Float(n), Object::Float(m)) => Some(Object::Float(n + m)),
-        (Object::String(s1), Object::String(s2)) => Some(Object::String(format!("{s1}{s2}"))),
-        (Object::String(s), obj) => Some(Object::String(format!("{s}{obj}"))),
-        (obj, Object::String(s)) => Some(Object::String(format!("{obj}{s}"))),
+        (Object::Float(n), Object::Float(m)) => Some(Object::float(n + m)),
+        (Object::String(s1), Object::String(s2)) => Some(Object::string(format!("{s1}{s2}"))),
+        (Object::String(s), obj) => Some(Object::string(format!("{s}{obj}"))),
+        (obj, Object::String(s)) => Some(Object::string(format!("{obj}{s}"))),
         (Object::Array { values: v1 }, Object::Array { values: v2 }) => {
             let v_out = v1.iter().chain(v2.iter()).cloned().collect();
-            Some(Object::Array { values: v_out })
+            Some(Object::array(v_out))
         }
         _ => None,
     }
@@ -295,11 +294,11 @@ fn eval_infix_minus(
     let left = eval_expr(env, builtin, left)?;
     let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
-        (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n - m)),
+        (Object::Integer(n), Object::Integer(m)) => Some(Object::integer(n - m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
-            Some(Object::Float(*f - *i as f64))
+            Some(Object::float(*f - *i as f64))
         }
-        (Object::Float(n), Object::Float(m)) => Some(Object::Float(n - m)),
+        (Object::Float(n), Object::Float(m)) => Some(Object::float(n - m)),
         _ => None,
     }
 }
@@ -313,11 +312,11 @@ fn eval_infix_slash(
     let left = eval_expr(env, builtin, left)?;
     let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
-        (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n / m)),
+        (Object::Integer(n), Object::Integer(m)) => Some(Object::integer(n / m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
-            Some(Object::Float(*f / *i as f64))
+            Some(Object::float(*f / *i as f64))
         }
-        (Object::Float(n), Object::Float(m)) => Some(Object::Float(n / m)),
+        (Object::Float(n), Object::Float(m)) => Some(Object::float(n / m)),
         _ => None,
     }
 }
@@ -331,13 +330,13 @@ fn eval_infix_mul(
     let left = eval_expr(env, builtin, left)?;
     let right = eval_expr(env, builtin, right)?;
     match (&left, &right) {
-        (Object::Integer(n), Object::Integer(m)) => Some(Object::Integer(n * m)),
+        (Object::Integer(n), Object::Integer(m)) => Some(Object::integer(n * m)),
         (Object::Integer(i), Object::Float(f)) | (Object::Float(f), Object::Integer(i)) => {
-            Some(Object::Float(*f * *i as f64))
+            Some(Object::float(*f * *i as f64))
         }
-        (Object::Float(n), Object::Float(m)) => Some(Object::Float(n * m)),
+        (Object::Float(n), Object::Float(m)) => Some(Object::float(n * m)),
         (Object::String(s), Object::Integer(n)) | (Object::Integer(n), Object::String(s)) => {
-            Some(Object::String(s.repeat(*n as usize)))
+            Some(Object::string(s.repeat(*n as usize)))
         }
         (Object::Array { values }, Object::Integer(n))
         | (Object::Integer(n), Object::Array { values }) => {
@@ -347,7 +346,7 @@ fn eval_infix_mul(
                 .take(values.len().saturating_mul(*n as usize))
                 .map(|obj| obj.to_owned())
                 .collect();
-            Some(Object::Array { values: v_out })
+            Some(Object::array(v_out))
         }
         _ => None,
     }
@@ -363,7 +362,7 @@ macro_rules! define_infix_bool_evaluator {
         ) -> Option<Object> {
             let left = eval_expr(env,builtin, left)?;
             let right = eval_expr(env,builtin, right)?;
-            Some(Object::Bool(left.is_truthy() $operator right.is_truthy()))
+            Some(Object::bool(left.is_truthy() $operator right.is_truthy()))
         }
     };
 }
@@ -381,7 +380,7 @@ macro_rules! define_infix_obj_eq {
         ) -> Option<Object> {
             let left = eval_expr(env,builtin, left)?;
             let right = eval_expr(env,builtin, right)?;
-            Some(Object::Bool(left $operator right))
+            Some(Object::bool(left $operator right))
         }
     };
 }
@@ -399,9 +398,9 @@ macro_rules! define_infix_bool_comparison {
             let left = eval_expr(env, builtin, left)?;
             let right = eval_expr(env, builtin, right)?;
             if left.partial_cmp(&right).is_some() {
-                Some(Object::Bool(left $operator right))
+                Some(Object::bool(left $operator right))
             }else{
-                Some(Object::Error(format!("can't compare {} and {}",left,right)))
+                Some(Object::error(format!("can't compare {} and {}",left,right)))
             }
         }
     };
@@ -422,8 +421,8 @@ macro_rules! define_infix_bit_operator {
             let left = eval_expr(env, builtin, left)?;
             let right = eval_expr(env, builtin, right)?;
             match (&left,&right){
-                (Object::Integer(n1), Object::Integer(n2)) => Some(Object::Integer(*n1 $operator *n2)),
-                _ => Some(Object::Error(format!("can't use bit operator `{}` on {} and {}", stringify!($operator), left, right)))
+                (Object::Integer(n1), Object::Integer(n2)) => Some(Object::integer(*n1 $operator *n2)),
+                _ => Some(Object::error(format!("can't use bit operator `{}` on {} and {}", stringify!($operator), left, right)))
             }
         }
     };
@@ -442,35 +441,33 @@ mod test {
     #[test]
     fn test_eval_programs() {
         let tests: [(&str, Object); 15] = [
-            ("let test = 3; test", Object::Integer(3)),
-            ("let test = 3.3; test", Object::Float(3.3)),
-            ("let test = \"test\"; test", Object::String("test".into())),
-            ("let test = 'c'; test", Object::Char('c')),
-            ("let test = true; test", Object::Bool(true)),
-            ("let test = false; test", Object::Bool(false)),
-            ("let test = null; test", Object::Null),
+            ("let test = 3; test", Object::integer(3)),
+            ("let test = 3.3; test", Object::float(3.3)),
+            ("let test = \"test\"; test", Object::string("test")),
+            ("let test = 'c'; test", Object::char('c')),
+            ("let test = true; test", Object::bool(true)),
+            ("let test = false; test", Object::bool(false)),
+            ("let test = null; test", Object::null()),
             (
                 "let test = fn(){\"test\"}; test()",
-                Object::String("test".into()),
+                Object::string("test"),
             ),
             (
                 "let test = [3,'c']; test",
-                Object::Array {
-                    values: vec![Object::Integer(3), Object::Char('c')],
-                },
+                Object::array(vec![Object::integer(3), Object::char('c')]),
             ),
             (
                 "let test = {\"test\": fn(){\"test\"}}; test[\"test\"]()",
-                Object::String("test".into()),
+                Object::string("test"),
             ),
             (
                 "let test = {\"test\": fn(a){a}}; test.test(\"test\")",
-                Object::String("test".into()),
+                Object::string("test"),
             ),
-            ("let test = [3,'c']; first(test)", Object::Integer(3)),
-            ("let test = 1 | 2; test", Object::Integer(3)),
-            ("let test = 5 & 2; test", Object::Integer(0)),
-            ("if(true) true else false", Object::Bool(true)),
+            ("let test = [3,'c']; first(test)", Object::integer(3)),
+            ("let test = 1 | 2; test", Object::integer(3)),
+            ("let test = 5 & 2; test", Object::integer(0)),
+            ("if(true) true else false", Object::bool(true)),
         ];
         let builtin = BuiltinBuilder::default().build();
         for (source, obj) in tests {
@@ -494,7 +491,7 @@ mod test {
                 }
                 let hello_fn = action("hello")
                 hello_fn("friend")"#,
-            Object::String("hello friend".into()),
+            Object::string("hello friend"),
         )];
         let builtin = BuiltinBuilder::default().build();
         for (source, obj) in tests {

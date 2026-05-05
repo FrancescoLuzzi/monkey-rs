@@ -99,6 +99,65 @@ impl PartialEq for Object {
 }
 
 impl Object {
+    #[must_use]
+    pub fn null() -> Self {
+        Self::Null
+    }
+
+    #[must_use]
+    pub fn bool(value: bool) -> Self {
+        Self::Bool(value)
+    }
+
+    #[must_use]
+    pub fn integer(value: i64) -> Self {
+        Self::Integer(value)
+    }
+
+    #[must_use]
+    pub fn float(value: f64) -> Self {
+        Self::Float(value)
+    }
+
+    #[must_use]
+    pub fn string(value: impl Into<String>) -> Self {
+        Self::String(value.into())
+    }
+
+    #[must_use]
+    pub fn char(value: char) -> Self {
+        Self::Char(value)
+    }
+
+    #[must_use]
+    pub fn array(values: Vec<Object>) -> Self {
+        Self::Array { values }
+    }
+
+    #[must_use]
+    pub fn dict(values: HashMap<HashKey, Object>) -> Self {
+        Self::Dict { values }
+    }
+
+    #[must_use]
+    pub fn error(message: impl Into<String>) -> Self {
+        Self::Error(message.into())
+    }
+
+    #[must_use]
+    pub fn function(parameters: Vec<String>, body: ast::Block, scoped_env: Environment) -> Self {
+        Self::Function {
+            parameters,
+            body,
+            scoped_env,
+        }
+    }
+
+    #[must_use]
+    pub fn builtin_function(handler: Arc<BuiltinFunction>) -> Self {
+        Self::BuiltinFunction { handler }
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Object::Null => false,
