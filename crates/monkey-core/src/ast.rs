@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::token::TokenType;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {
@@ -73,7 +73,7 @@ pub enum Expression {
     Infix {
         left: Box<Expression>,
         right: Box<Expression>,
-        op: Token,
+        op: TokenType,
     },
 }
 

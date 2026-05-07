@@ -83,12 +83,10 @@ pub fn eval_expr(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -
     match expr {
         ast::Expression::Null => Some(Object::null()),
         ast::Expression::Identifier { name } => Some(
-            builtin
-                .get(name)
-                .map(Object::builtin_function)
-                .unwrap_or(env.get(name).unwrap_or(Object::error(format!(
-                    "{name} not yet defined"
-                )))),
+            builtin.get(name).map(Object::builtin_function).unwrap_or(
+                env.get(name)
+                    .unwrap_or(Object::error(format!("{name} not yet defined"))),
+            ),
         ),
         ast::Expression::Integer { value } => Some(Object::integer(*value)),
         ast::Expression::Float { value } => Some(Object::float(*value)),
@@ -238,24 +236,24 @@ fn eval_infix(
     env: &Environment,
     builtin: &Builtin,
     left: &ast::Expression,
-    op: &token::Token,
+    op: &token::TokenType,
     right: &ast::Expression,
 ) -> Option<Object> {
     match op {
-        token::Token::Plus => eval_infix_sum(env, builtin, left, right),
-        token::Token::Minus => eval_infix_minus(env, builtin, left, right),
-        token::Token::Slash => eval_infix_slash(env, builtin, left, right),
-        token::Token::Asterisk => eval_infix_mul(env, builtin, left, right),
-        token::Token::And => eval_infix_and(env, builtin, left, right),
-        token::Token::Or => eval_infix_or(env, builtin, left, right),
-        token::Token::Eq => eval_infix_eq(env, builtin, left, right),
-        token::Token::Neq => eval_infix_neq(env, builtin, left, right),
-        token::Token::Gt => eval_infix_gt(env, builtin, left, right),
-        token::Token::Lt => eval_infix_lt(env, builtin, left, right),
-        token::Token::Ge => eval_infix_ge(env, builtin, left, right),
-        token::Token::Le => eval_infix_le(env, builtin, left, right),
-        token::Token::BitAnd => eval_infix_bit_and(env, builtin, left, right),
-        token::Token::BitOr => eval_infix_bit_or(env, builtin, left, right),
+        token::TokenType::Plus => eval_infix_sum(env, builtin, left, right),
+        token::TokenType::Minus => eval_infix_minus(env, builtin, left, right),
+        token::TokenType::Slash => eval_infix_slash(env, builtin, left, right),
+        token::TokenType::Asterisk => eval_infix_mul(env, builtin, left, right),
+        token::TokenType::And => eval_infix_and(env, builtin, left, right),
+        token::TokenType::Or => eval_infix_or(env, builtin, left, right),
+        token::TokenType::Eq => eval_infix_eq(env, builtin, left, right),
+        token::TokenType::Neq => eval_infix_neq(env, builtin, left, right),
+        token::TokenType::Gt => eval_infix_gt(env, builtin, left, right),
+        token::TokenType::Lt => eval_infix_lt(env, builtin, left, right),
+        token::TokenType::Ge => eval_infix_ge(env, builtin, left, right),
+        token::TokenType::Le => eval_infix_le(env, builtin, left, right),
+        token::TokenType::BitAnd => eval_infix_bit_and(env, builtin, left, right),
+        token::TokenType::BitOr => eval_infix_bit_or(env, builtin, left, right),
         _ => None,
     }
 }
@@ -448,10 +446,7 @@ mod test {
             ("let test = true; test", Object::bool(true)),
             ("let test = false; test", Object::bool(false)),
             ("let test = null; test", Object::null()),
-            (
-                "let test = fn(){\"test\"}; test()",
-                Object::string("test"),
-            ),
+            ("let test = fn(){\"test\"}; test()", Object::string("test")),
             (
                 "let test = [3,'c']; test",
                 Object::array(vec![Object::integer(3), Object::char('c')]),
