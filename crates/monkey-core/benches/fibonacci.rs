@@ -22,7 +22,7 @@ fn benchmark_fibonacci(c: &mut Criterion) {
         b.iter(|| {
             let program = Parser::new(Lexer::new(FIBONACCI_PROGRAM))
                 .parse_program()
-                .expect("fibonacci program should parse");
+                .unwrap_or_else(|error| panic!("fibonacci program should parse\n{error:?}"));
 
             black_box(program);
         })
@@ -30,7 +30,7 @@ fn benchmark_fibonacci(c: &mut Criterion) {
 
     let program = Parser::new(Lexer::new(FIBONACCI_PROGRAM))
         .parse_program()
-        .expect("fibonacci program should parse");
+        .unwrap_or_else(|error| panic!("fibonacci program should parse\n{error:?}"));
     let builtin = BuiltinBuilder::default().build();
 
     c.bench_function("eval_fibonacci", |b| {

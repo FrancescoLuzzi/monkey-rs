@@ -469,7 +469,7 @@ mod test {
             dbg!(source);
             let program = Parser::new(Lexer::new(source))
                 .parse_program()
-                .unwrap_or_else(|| panic!("couldn't parse program: {source}"));
+                .unwrap_or_else(|error| panic!("couldn't parse program: {source}\n{error:?}"));
 
             let env = Environment::new();
             let output = eval_program(&env, &builtin, &program)
@@ -493,7 +493,7 @@ mod test {
             dbg!(source);
             let program = Parser::new(Lexer::new(source))
                 .parse_program()
-                .unwrap_or_else(|| panic!("couldn't parse program: {source}"));
+                .unwrap_or_else(|error| panic!("couldn't parse program: {source}\n{error:?}"));
 
             let env = Environment::new();
             let output = eval_program(&env, &builtin, &program)

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use js_sys::{Array, Function, Map, Object as JsObject, Reflect, try_iter};
+use miette::Report;
 use monkey_core::builtin::BuiltinFunction;
 use monkey_core::objects::{HashKey, Object};
 use wasm_bindgen::prelude::*;
@@ -46,7 +47,9 @@ impl MonkeyState {
     #[wasm_bindgen]
     pub fn eval(&mut self, input: &str) -> Result<String, String> {
         let mut parser = monkey_core::parser::Parser::new(monkey_core::lexer::Lexer::new(input));
-        let program = parser.parse_program().ok_or("Error parsing".to_string())?;
+        let program = parser
+            .parse_program()
+            .map_err(|error| format!("{:?}", Report::new(error)))?;
         monkey_core::evaluator::eval_program(&self.env, &self.builtins, &program)
             .ok_or("Error evaluating".to_string())
             .map(|x| x.to_string())
