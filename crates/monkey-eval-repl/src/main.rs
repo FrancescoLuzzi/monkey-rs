@@ -1,7 +1,6 @@
 use miette::Report;
-use monkey_core::{
-    builtin, environment::Environment, evaluator::eval_program, lexer::Lexer, parser::Parser,
-};
+use monkey_core::{lexer::Lexer, parser::Parser};
+use monkey_eval::{builtin, environment::Environment, evaluator::eval_program};
 use std::io;
 
 const PROMPT: &[u8; 3] = b">> ";

@@ -2,14 +2,19 @@ use std::{collections::HashMap, sync::Arc};
 
 use js_sys::{Array, Function, Map, Object as JsObject, Reflect, try_iter};
 use miette::Report;
-use monkey_core::builtin::BuiltinFunction;
-use monkey_core::objects::{HashKey, Object};
+use monkey_core::{lexer::Lexer, parser::Parser};
+use monkey_eval::{
+    builtin::{Builtin, BuiltinBuilder, BuiltinFunction},
+    environment::Environment,
+    evaluator::eval_program,
+    objects::{HashKey, Object},
+};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub struct MonkeyStateBuilder {
     #[wasm_bindgen(skip)]
-    builder: monkey_core::builtin::BuiltinBuilder,
+    builder: BuiltinBuilder,
 }
 
 #[wasm_bindgen]
@@ -17,7 +22,7 @@ impl MonkeyStateBuilder {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self {
-            builder: monkey_core::builtin::BuiltinBuilder::default(),
+            builder: BuiltinBuilder::default(),
         }
     }
 
@@ -28,7 +33,7 @@ impl MonkeyStateBuilder {
 
     pub fn build(self) -> MonkeyState {
         MonkeyState {
-            env: monkey_core::environment::Environment::new(),
+            env: Environment::new(),
             builtins: self.builder.build(),
         }
     }
@@ -37,20 +42,20 @@ impl MonkeyStateBuilder {
 #[wasm_bindgen]
 pub struct MonkeyState {
     #[wasm_bindgen(skip)]
-    env: monkey_core::environment::Environment,
+    env: Environment,
     #[wasm_bindgen(skip)]
-    builtins: monkey_core::builtin::Builtin,
+    builtins: Builtin,
 }
 
 #[wasm_bindgen]
 impl MonkeyState {
     #[wasm_bindgen]
     pub fn eval(&mut self, input: &str) -> Result<String, String> {
-        let mut parser = monkey_core::parser::Parser::new(monkey_core::lexer::Lexer::new(input));
+        let mut parser = Parser::new(Lexer::new(input));
         let program = parser
             .parse_program()
             .map_err(|error| format!("{:?}", Report::new(error)))?;
-        monkey_core::evaluator::eval_program(&self.env, &self.builtins, &program)
+        eval_program(&self.env, &self.builtins, &program)
             .ok_or("Error evaluating".to_string())
             .map(|x| x.to_string())
     }

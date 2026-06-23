@@ -9,5 +9,6 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
  js-sys = "0.3.77"
  miette = { workspace = true }
+ monkey-eval = { path = "../../crates/monkey-eval" }
  monkey-core = { path = "../../crates/monkey-core" }
  wasm-bindgen = "0.2.100"

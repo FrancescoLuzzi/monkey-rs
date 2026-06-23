@@ -1,0 +1,9 @@
+[package]
+name = "monkey-eval-repl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+miette = { workspace = true }
+monkey-eval = { path = "../monkey-eval" }
+monkey-core = { path = "../monkey-core" }

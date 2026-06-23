@@ -206,6 +206,7 @@ impl<'a> Parser<'a> {
         let result = match token._type {
             TokenType::Let => self.parse_let_stmt(token),
             TokenType::Return => self.parse_return_stmt(token),
+            TokenType::Function => self.parse_function_decl(token),
             _ => Ok(ast::Node::Expression(
                 self.parse_expr(token, Precedence::Min)?,
             )),
@@ -227,10 +228,34 @@ impl<'a> Parser<'a> {
         self.expect_next_token(TokenType::Assign, "`=` after the variable name")?;
         let value_token = self.next_required_token("an expression after `=`")?;
 
-        Ok(ast::Node::Let {
-            name: ident,
-            value: self.parse_expr(value_token, Precedence::Min)?,
-        })
+        if value_token._type == TokenType::Function && self.peek_is(TokenType::Ident)? {
+            let name_token = self.next_required_token("an anonymous function in a let binding")?;
+            return self.unexpected_token(name_token, "an anonymous function in a let binding");
+        }
+
+        let parsed_expr = self.parse_expr(value_token, Precedence::Min)?;
+
+        match parsed_expr {
+            ast::Expression::Function {
+                name,
+                parameters,
+                body,
+            } => {
+                if name.is_some() {
+                    self.unexpected_token(token, "can't let define a function that has a name")
+                } else {
+                    Ok(ast::Node::Let {
+                        name: ident.clone(),
+                        value: ast::Expression::Function {
+                            name: Some(ident),
+                            parameters,
+                            body,
+                        },
+                    })
+                }
+            }
+            value => Ok(ast::Node::Let { name: ident, value }),
+        }
     }
 
     fn parse_return_stmt(&mut self, token: Token<'a>) -> ParseResult<ast::Node> {
@@ -403,14 +428,42 @@ impl<'a> Parser<'a> {
     fn parse_function(&mut self, token: Token<'a>) -> ParseResult<ast::Expression> {
         debug_assert_eq!(token._type, TokenType::Function);
 
+        let name = if self.peek_is(TokenType::Ident)? {
+            let ident_token = self.next_required_token("a function name after fn")?;
+            Some(ident_token.slice.to_string())
+        } else {
+            None
+        };
         self.expect_next_token(TokenType::Lparen, "`(` after `fn`")?;
         let parameters = self.parse_function_params()?;
         let body_token = self.next_required_token("a function body after the parameter list")?;
 
         Ok(ast::Expression::Function {
+            name,
             parameters,
             body: self.parse_block(body_token)?,
         })
+    }
+
+    fn parse_function_decl(&mut self, token: Token<'a>) -> ParseResult<ast::Node> {
+        debug_assert_eq!(token._type, TokenType::Function);
+        let function = self.parse_function(token)?;
+
+        match function {
+            ast::Expression::Function {
+                name: Some(name),
+                parameters,
+                body,
+            } => Ok(ast::Node::Let {
+                name: name.clone(),
+                value: ast::Expression::Function {
+                    name: Some(name),
+                    parameters,
+                    body,
+                },
+            }),
+            function => Ok(ast::Node::Expression(function)),
+        }
     }
 
     fn parse_if(&mut self, token: Token<'a>) -> ParseResult<ast::Expression> {
@@ -839,6 +892,7 @@ mod test {
                 ast::Node::Let {
                     name: "some".into(),
                     value: ast::Expression::Function {
+                        name: Some("some".into()),
                         parameters: Vec::new(),
                         body: ast::Block {
                             statements: Vec::new(),
@@ -851,6 +905,7 @@ mod test {
                 ast::Node::Let {
                     name: "some".into(),
                     value: ast::Expression::Function {
+                        name: Some("some".into()),
                         parameters: vec!["a".into(), "b".into()],
                         body: ast::Block {
                             statements: vec![
@@ -943,6 +998,83 @@ mod test {
                 }
             }
         )
+    }
+
+    #[test]
+    fn parse_function_declaration() {
+        let source = "fn add(a, b) { return a + b; }";
+        let lex = lexer::Lexer::new(source);
+        let mut parser = Parser::new(lex);
+        let program = parser
+            .parse_program()
+            .unwrap_or_else(|error| panic!("couldn't parse function declaration\n{error:?}"));
+
+        assert_eq!(program.statements.len(), 1);
+        assert_eq!(
+            program.statements[0],
+            ast::Node::Let {
+                name: "add".into(),
+                value: ast::Expression::Function {
+                    name: Some("add".into()),
+                    parameters: vec!["a".into(), "b".into()],
+                    body: ast::Block {
+                        statements: vec![ast::Node::Return {
+                            value: ast::Expression::Infix {
+                                left: ast::Expression::Identifier { name: "a".into() }.into(),
+                                op: token(TokenType::Plus, "+"),
+                                right: ast::Expression::Identifier { name: "b".into() }.into(),
+                            },
+                        }],
+                    },
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn parse_let_defined_function() {
+        let source = "let add = fn(a, b) { return a + b; };";
+        let lex = lexer::Lexer::new(source);
+        let mut parser = Parser::new(lex);
+        let program = parser
+            .parse_program()
+            .unwrap_or_else(|error| panic!("couldn't parse let-defined function\n{error:?}"));
+
+        assert_eq!(program.statements.len(), 1);
+        assert_eq!(
+            program.statements[0],
+            ast::Node::Let {
+                name: "add".into(),
+                value: ast::Expression::Function {
+                    name: Some("add".into()),
+                    parameters: vec!["a".into(), "b".into()],
+                    body: ast::Block {
+                        statements: vec![ast::Node::Return {
+                            value: ast::Expression::Infix {
+                                left: ast::Expression::Identifier { name: "a".into() }.into(),
+                                op: token(TokenType::Plus, "+"),
+                                right: ast::Expression::Identifier { name: "b".into() }.into(),
+                            },
+                        }],
+                    },
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn parse_rejects_let_defined_function_with_name() {
+        let error = Parser::new(lexer::Lexer::new(
+            "let add = fn named(a, b) { return a + b; };",
+        ))
+        .parse_program()
+        .expect_err("let-defined function with a name should be rejected");
+
+        assert!(matches!(error, ParserError::UnexpectedToken { .. }));
+        assert_eq!(
+            error.to_string(),
+            "expected an anonymous function in a let binding, found identifier `named`"
+        );
     }
 
     macro_rules! define_infix_test_case {
@@ -1156,6 +1288,7 @@ mod test {
                         right: ast::Expression::Integer { value: 2 }.into(),
                     },
                     ast::Expression::Function {
+                        name: None,
                         parameters: vec!["test".into()],
                         body: ast::Block {
                             statements: vec![ast::Node::Expression(ast::Expression::Infix {
@@ -1209,6 +1342,7 @@ mod test {
                             value: "func".into(),
                         },
                         ast::Expression::Function {
+                            name: None,
                             parameters: vec!["test".into()],
                             body: ast::Block {
                                 statements: vec![ast::Node::Expression(ast::Expression::Infix {

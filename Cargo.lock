@@ -389,6 +389,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "monkey-compiler"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "derive_more",
+ "monkey-core",
+ "thiserror",
+]
+
+[[package]]
+name = "monkey-compiler-repl"
+version = "0.1.0"
+dependencies = [
+ "miette",
+ "monkey-compiler",
+ "monkey-core",
+]
+
+[[package]]
 name = "monkey-core"
 version = "0.1.0"
 dependencies = [
@@ -399,11 +418,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "monkey-repl"
+name = "monkey-eval"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "derive_more",
+ "monkey-core",
+]
+
+[[package]]
+name = "monkey-eval-repl"
 version = "0.1.0"
 dependencies = [
  "miette",
  "monkey-core",
+ "monkey-eval",
 ]
 
 [[package]]
@@ -413,6 +442,7 @@ dependencies = [
  "js-sys",
  "miette",
  "monkey-core",
+ "monkey-eval",
  "wasm-bindgen",
 ]
 

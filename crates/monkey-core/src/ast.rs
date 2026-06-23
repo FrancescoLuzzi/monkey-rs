@@ -54,6 +54,7 @@ pub enum Expression {
         values: Vec<(Expression, Expression)>,
     },
     Function {
+        name: Option<String>,
         parameters: Vec<String>,
         body: Block,
     },
@@ -112,8 +113,16 @@ impl std::fmt::Display for Expression {
             }
             Expression::Negated { value } => f.write_fmt(format_args!("!{}", value)),
             Expression::Minus { value } => f.write_fmt(format_args!("-{}", value)),
-            Expression::Function { parameters, body } => {
-                write!(f, "fn({}){}", parameters.join(", "), body)
+            Expression::Function {
+                name,
+                parameters,
+                body,
+            } => {
+                if let Some(fn_name) = name {
+                    write!(f, "fn {}({}){}", fn_name, parameters.join(", "), body)
+                } else {
+                    write!(f, "fn({}){}", parameters.join(", "), body)
+                }
             }
             Expression::Index { value, index } => {
                 write!(f, "{}[{}]", value, index)

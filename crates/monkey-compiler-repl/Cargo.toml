@@ -1,0 +1,9 @@
+[package]
+name = "monkey-compiler-repl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+miette = { workspace = true }
+monkey-compiler = { path = "../monkey-compiler" }
+monkey-core = { path = "../monkey-core" }

@@ -8,13 +8,25 @@ test-all:
     @cargo test --workspace
 
 repl:
-    @cargo run -p monkey-repl
+    @cargo run -p monkey-eval-repl
+
+compiler-repl:
+    @cargo run -p monkey-compiler-repl
 
 build-repl:
-    @cargo build --release -p monkey-repl
+    @cargo build --release -p monkey-eval-repl
 
-bench-fibonacci:
-    @cargo bench -p monkey-core --bench fibonacci
+build-compiler-repl:
+    @cargo build --release -p monkey-compiler-repl
+
+bench-parse:
+    @cargo bench -p monkey-parser --bench parse
+
+bench-eval:
+    @cargo bench -p monkey-eval --bench eval
+
+bench-compiler:
+    @cargo bench -p monkey-compiler --bench compiler
 
 setup-github-pages:
     @cargo install wasm-pack

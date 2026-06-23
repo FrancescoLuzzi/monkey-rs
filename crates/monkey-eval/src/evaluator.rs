@@ -98,7 +98,9 @@ pub fn eval_expr(env: &Environment, builtin: &Builtin, expr: &ast::Expression) -
         ast::Expression::Block { value } => eval_statements(env, builtin, &value.statements),
         ast::Expression::Array { values } => eval_array(env, builtin, values),
         ast::Expression::Dict { values } => eval_dict(env, builtin, values),
-        ast::Expression::Function { parameters, body } => Some(Object::function(
+        ast::Expression::Function {
+            parameters, body, ..
+        } => Some(Object::function(
             parameters.clone(),
             body.clone(),
             env.new_derived_env(),
@@ -354,36 +356,36 @@ macro_rules! define_infix_bool_evaluator {
     ($func_name:ident, $operator:tt) => {
         fn $func_name(
             env: &Environment,
-    builtin: &Builtin,
+            builtin: &Builtin,
             left: &ast::Expression,
             right: &ast::Expression,
         ) -> Option<Object> {
-            let left = eval_expr(env,builtin, left)?;
-            let right = eval_expr(env,builtin, right)?;
+            let left = eval_expr(env, builtin, left)?;
+            let right = eval_expr(env, builtin, right)?;
             Some(Object::bool(left.is_truthy() $operator right.is_truthy()))
         }
     };
 }
 
-define_infix_bool_evaluator!(eval_infix_and,&&);
-define_infix_bool_evaluator!(eval_infix_or,||);
+define_infix_bool_evaluator!(eval_infix_and, &&);
+define_infix_bool_evaluator!(eval_infix_or, ||);
 
 macro_rules! define_infix_obj_eq {
     ($func_name:ident, $operator:tt) => {
         fn $func_name(
             env: &Environment,
-    builtin: &Builtin,
+            builtin: &Builtin,
             left: &ast::Expression,
             right: &ast::Expression,
         ) -> Option<Object> {
-            let left = eval_expr(env,builtin, left)?;
-            let right = eval_expr(env,builtin, right)?;
+            let left = eval_expr(env, builtin, left)?;
+            let right = eval_expr(env, builtin, right)?;
             Some(Object::bool(left $operator right))
         }
     };
 }
-define_infix_obj_eq!(eval_infix_eq, == );
-define_infix_obj_eq!(eval_infix_neq, != );
+define_infix_obj_eq!(eval_infix_eq, ==);
+define_infix_obj_eq!(eval_infix_neq, !=);
 
 macro_rules! define_infix_bool_comparison {
     ($func_name:ident, $operator:tt) => {
@@ -397,16 +399,16 @@ macro_rules! define_infix_bool_comparison {
             let right = eval_expr(env, builtin, right)?;
             if left.partial_cmp(&right).is_some() {
                 Some(Object::bool(left $operator right))
-            }else{
-                Some(Object::error(format!("can't compare {} and {}",left,right)))
+            } else {
+                Some(Object::error(format!("can't compare {} and {}", left, right)))
             }
         }
     };
 }
-define_infix_bool_comparison!(eval_infix_gt,>);
-define_infix_bool_comparison!(eval_infix_ge,>=);
-define_infix_bool_comparison!(eval_infix_lt,<);
-define_infix_bool_comparison!(eval_infix_le,<=);
+define_infix_bool_comparison!(eval_infix_gt, >);
+define_infix_bool_comparison!(eval_infix_ge, >=);
+define_infix_bool_comparison!(eval_infix_lt, <);
+define_infix_bool_comparison!(eval_infix_le, <=);
 
 macro_rules! define_infix_bit_operator {
     ($func_name:ident, $operator:tt) => {
@@ -418,23 +420,26 @@ macro_rules! define_infix_bit_operator {
         ) -> Option<Object> {
             let left = eval_expr(env, builtin, left)?;
             let right = eval_expr(env, builtin, right)?;
-            match (&left,&right){
+            match (&left, &right) {
                 (Object::Integer(n1), Object::Integer(n2)) => Some(Object::integer(*n1 $operator *n2)),
-                _ => Some(Object::error(format!("can't use bit operator `{}` on {} and {}", stringify!($operator), left, right)))
+                _ => Some(Object::error(format!(
+                    "can't use bit operator `{}` on {} and {}",
+                    stringify!($operator),
+                    left,
+                    right
+                ))),
             }
         }
     };
 }
-define_infix_bit_operator!(eval_infix_bit_and,&);
-define_infix_bit_operator!(eval_infix_bit_or,|);
+define_infix_bit_operator!(eval_infix_bit_and, &);
+define_infix_bit_operator!(eval_infix_bit_or, |);
 
 #[cfg(test)]
 mod test {
     use super::eval_program;
-    use crate::{
-        builtin::BuiltinBuilder, environment::Environment, lexer::Lexer, objects::Object,
-        parser::Parser,
-    };
+    use crate::{builtin::BuiltinBuilder, environment::Environment, objects::Object};
+    use monkey_core::{lexer::Lexer, parser::Parser};
 
     #[test]
     fn test_eval_programs() {

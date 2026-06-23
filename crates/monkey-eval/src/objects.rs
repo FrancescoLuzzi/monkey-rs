@@ -69,6 +69,7 @@ impl PartialOrd for Object {
 impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Null, Self::Null) => true,
             (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
             (Self::Integer(l0), Self::Integer(r0)) => l0 == r0,
             (Self::Float(l0), Self::Float(r0)) => l0 == r0,
@@ -81,18 +82,6 @@ impl PartialEq for Object {
                 l_values == r_values
             }
             (Self::Error(l0), Self::Error(r0)) => l0 == r0,
-            (
-                Self::Function {
-                    parameters: l_parameters,
-                    body: l_body,
-                    ..
-                },
-                Self::Function {
-                    parameters: r_parameters,
-                    body: r_body,
-                    ..
-                },
-            ) => l_parameters == r_parameters && l_body == r_body,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -164,7 +153,7 @@ impl Object {
             Object::Bool(b) => *b,
             Object::Integer(n) => *n != 0,
             Object::Float(n) => *n != 0.0,
-            Object::String(s) => s.chars().all(char::is_whitespace),
+            Object::String(s) => s != "",
             Object::Char(c) => *c != '\0' && *c != ' ',
             Object::Error(_) => false,
             Object::Function { .. } | Object::BuiltinFunction { .. } => true,

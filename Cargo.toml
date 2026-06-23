@@ -1,7 +1,20 @@
 [workspace]
-members = ["crates/monkey-*", "examples/monkey-wasm"]
+members = [
+    "crates/monkey-core",
+    "crates/monkey-eval",
+    "crates/monkey-compiler",
+    "crates/monkey-eval-repl",
+    "crates/monkey-compiler-repl",
+    "examples/monkey-wasm",
+]
 # Only check / build main crates by default (check all with `--workspace`)
-default-members = ["crates/monkey-core", "crates/monkey-repl"]
+default-members = [
+    "crates/monkey-core",
+    "crates/monkey-eval",
+    "crates/monkey-compiler",
+    "crates/monkey-eval-repl",
+    "crates/monkey-compiler-repl",
+]
 resolver = "2"
 
 [workspace.dependencies]

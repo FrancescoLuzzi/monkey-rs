@@ -1,16 +1,16 @@
 [package]
-name = "monkey-core"
+name = "monkey-compiler"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 derive_more = { workspace = true }
-miette = { workspace = true }
+monkey-core = { path = "../monkey-core" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = "0.8.2"
 
 [[bench]]
-name = "parse"
+name = "compiler"
 harness = false
