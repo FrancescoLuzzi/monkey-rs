@@ -1,4 +1,4 @@
-#[derive(Copy, PartialEq, Clone, Debug)]
+#[derive(Copy, PartialEq, Eq, Clone, Debug)]
 #[repr(u8)]
 pub enum TokenType {
     Illegal,
