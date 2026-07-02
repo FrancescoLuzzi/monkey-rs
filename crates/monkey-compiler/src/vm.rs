@@ -4,7 +4,7 @@ use crate::{
     compiler::Bytecode,
     objects::{Closure, CompiledFunc, HashKey, Object},
 };
-use std::{cmp::Ordering, collections::HashMap};
+use std::collections::HashMap;
 use thiserror::Error;
 
 const STACK_SIZE: usize = 2048;
@@ -108,7 +108,9 @@ impl Vm {
     }
 
     fn pop_frame(&mut self) -> Result<Frame> {
-        self.frames.pop().ok_or(VmError::StackUnderflow)
+        let frame = self.frames.pop().ok_or(VmError::StackUnderflow)?;
+        self.stack.truncate(frame.base_sp - 1);
+        Ok(frame)
     }
 
     fn push_frame(&mut self, frame: Frame) -> Result<()> {
@@ -198,14 +200,12 @@ impl Vm {
 
                 Opcode::ReturnValue => {
                     let return_value = self.pop()?;
-                    let frame = self.pop_frame()?;
-                    self.stack.truncate(frame.base_sp - 1);
+                    _ = self.pop_frame()?;
                     self.push(return_value)?;
                 }
 
                 Opcode::Return => {
-                    let frame = self.pop_frame()?;
-                    self.stack.truncate(frame.base_sp - 1);
+                    _ = self.pop_frame()?;
                     self.push(Object::Null)?;
                 }
                 Opcode::SetGlobal => {
@@ -363,6 +363,7 @@ impl Vm {
         let value = self.pop()?;
         let result = match opcode {
             Opcode::Minus => match value {
+                Object::Bool(value) => Object::integer(-(value as i64)),
                 Object::Integer(integer) => Object::integer(-integer),
                 Object::Float(float) => Object::float(-float),
                 value => return Err(VmError::UnsupportedUnaryOperation { op: opcode, value }),
@@ -380,7 +381,7 @@ impl Vm {
         let result = match opcode {
             Opcode::Add => add_objects(&left, &right),
             Opcode::Sub => numeric_binary(&left, &right, |l, r| l - r, |l, r| l - r),
-            Opcode::Mul => numeric_binary(&left, &right, |l, r| l * r, |l, r| l * r),
+            Opcode::Mul => multiply_objects(&left, &right),
             Opcode::Div => numeric_binary(&left, &right, |l, r| l / r, |l, r| l / r),
             Opcode::Equal => Ok(Object::bool(left == right)),
             Opcode::NotEqual => Ok(Object::bool(left != right)),
@@ -463,8 +464,48 @@ fn add_objects(left: &Object, right: &Object) -> std::result::Result<Object, ()>
         (Object::String(left), Object::String(right)) => {
             Ok(Object::string(format!("{left}{right}")))
         }
+        (Object::String(left), right) => Ok(Object::string(format!("{left}{right}"))),
+        (left, Object::String(right)) => Ok(Object::string(format!("{left}{right}"))),
+        (Object::Array { values: left }, Object::Array { values: right }) => Ok(Object::array(
+            left.iter().chain(right.iter()).cloned().collect(),
+        )),
         _ => Err(()),
     }
+}
+
+fn multiply_objects(left: &Object, right: &Object) -> std::result::Result<Object, ()> {
+    match (left, right) {
+        (Object::String(value), Object::Integer(count))
+        | (Object::Integer(count), Object::String(value)) => repeat_string(value, *count),
+        (Object::Array { values }, Object::Integer(count))
+        | (Object::Integer(count), Object::Array { values }) => repeat_array(values, *count),
+        _ => numeric_binary(
+            left,
+            right,
+            |left, right| left * right,
+            |left, right| left * right,
+        ),
+    }
+}
+
+fn repeat_count(count: i64) -> std::result::Result<usize, ()> {
+    usize::try_from(count).map_err(|_| ())
+}
+
+fn repeat_string(value: &str, count: i64) -> std::result::Result<Object, ()> {
+    Ok(Object::string(value.repeat(repeat_count(count)?)))
+}
+
+fn repeat_array(values: &[Object], count: i64) -> std::result::Result<Object, ()> {
+    let count = repeat_count(count)?;
+    Ok(Object::array(
+        values
+            .iter()
+            .cycle()
+            .take(values.len().saturating_mul(count))
+            .cloned()
+            .collect(),
+    ))
 }
 
 fn numeric_binary(
@@ -502,19 +543,9 @@ fn bitwise_binary(
 fn compare_objects(
     left: &Object,
     right: &Object,
-    predicate: impl FnOnce(Ordering) -> bool,
+    predicate: impl FnOnce(std::cmp::Ordering) -> bool,
 ) -> std::result::Result<Object, ()> {
-    let ordering = match (left, right) {
-        (Object::Integer(left), Object::Integer(right)) => left.partial_cmp(right),
-        (Object::Integer(left), Object::Float(right)) => (*left as f64).partial_cmp(right),
-        (Object::Float(left), Object::Integer(right)) => left.partial_cmp(&(*right as f64)),
-        (Object::Float(left), Object::Float(right)) => left.partial_cmp(right),
-        (Object::Bool(left), Object::Bool(right)) => left.partial_cmp(right),
-        (Object::Char(left), Object::Char(right)) => left.partial_cmp(right),
-        (Object::String(left), Object::String(right)) => left.partial_cmp(right),
-        _ => None,
-    }
-    .ok_or(())?;
+    let ordering = left.partial_cmp(right).ok_or(())?;
 
     Ok(Object::bool(predicate(ordering)))
 }
@@ -549,7 +580,25 @@ mod test {
             ("5 & 2", Object::integer(0)),
             ("1.5 + 2", Object::float(3.5)),
             ("-3", Object::integer(-3)),
+            ("-true", Object::integer(-1)),
             ("\"mon\" + \"key\"", Object::string("monkey")),
+            ("\"x\" + 1", Object::string("x1")),
+            ("1 + \"x\"", Object::string("1x")),
+            ("\"ha\" * 3", Object::string("hahaha")),
+            ("3 * \"ha\"", Object::string("hahaha")),
+            (
+                "[1] + [2]",
+                Object::array(vec![Object::integer(1), Object::integer(2)]),
+            ),
+            (
+                "[1, 2] * 2",
+                Object::array(vec![
+                    Object::integer(1),
+                    Object::integer(2),
+                    Object::integer(1),
+                    Object::integer(2),
+                ]),
+            ),
         ];
 
         for (input, expected) in tests {
@@ -566,6 +615,9 @@ mod test {
             ("1 && \"x\"", Object::bool(true)),
             ("0 || null", Object::bool(false)),
             ("1 < 2", Object::bool(true)),
+            ("true < 2", Object::bool(true)),
+            ("1 < 'a'", Object::bool(true)),
+            ("[1] < [2]", Object::bool(true)),
             ("1 >= 2", Object::bool(false)),
             ("if (true) { 10 } else { 20 }", Object::integer(10)),
             ("if (false) { 10 }", Object::null()),
@@ -612,6 +664,10 @@ mod test {
             ),
             (
                 "let add = fn(a, b) { let sum = a + b; sum; }; add(1, 2);",
+                Object::integer(3),
+            ),
+            (
+                "let value = fn() { return 1; }; value() + 2;",
                 Object::integer(3),
             ),
             ("let noReturn = fn() { }; noReturn();", Object::null()),

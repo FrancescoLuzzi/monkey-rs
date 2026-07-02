@@ -1,5 +1,5 @@
 use crate::{builtin::BuiltinFunction, code::Instructions};
-use std::{collections::HashMap, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 #[derive(Clone, derive_more::Display, derive_more::Debug)]
 pub enum Object {
@@ -70,6 +70,31 @@ impl PartialEq for Object {
             }
             (Self::Error(l0), Self::Error(r0)) => l0 == r0,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+
+impl PartialOrd for Object {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Object::Null, _) | (_, Object::Null) => None,
+            (Object::Bool(left), Object::Bool(right)) => left.partial_cmp(right),
+            (Object::Bool(left), Object::Integer(right)) => (*left as i64).partial_cmp(right),
+            (Object::Integer(left), Object::Bool(right)) => left.partial_cmp(&(*right as i64)),
+            (Object::Bool(left), Object::Float(right)) => (*left as i64 as f64).partial_cmp(right),
+            (Object::Float(left), Object::Bool(right)) => left.partial_cmp(&(*right as i64 as f64)),
+            (Object::Integer(left), Object::Integer(right)) => left.partial_cmp(right),
+            (Object::Integer(left), Object::Float(right)) => (*left as f64).partial_cmp(right),
+            (Object::Float(left), Object::Integer(right)) => left.partial_cmp(&(*right as f64)),
+            (Object::Float(left), Object::Float(right)) => left.partial_cmp(right),
+            (Object::Integer(left), Object::Char(right)) => left.partial_cmp(&(*right as i64)),
+            (Object::Char(left), Object::Integer(right)) => (*left as i64).partial_cmp(right),
+            (Object::Char(left), Object::Char(right)) => left.partial_cmp(right),
+            (Object::String(left), Object::String(right)) => left.partial_cmp(right),
+            (Object::Array { values: left }, Object::Array { values: right }) => {
+                left.iter().partial_cmp(right.iter())
+            }
+            _ => None,
         }
     }
 }
