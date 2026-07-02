@@ -1,6 +1,6 @@
 use std::{iter::Peekable, str::CharIndices};
 
-use miette::{Diagnostic, NamedSource, SourceSpan};
+use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
 use crate::token::{self, Token, TokenType};
@@ -17,8 +17,6 @@ pub enum LexerError {
     )]
     UnexpectedCharacter {
         found: char,
-        #[source_code]
-        src: NamedSource<String>,
         #[label("this character is not valid Monkey syntax")]
         span: SourceSpan,
     },
@@ -29,8 +27,6 @@ pub enum LexerError {
         help("add a closing `\"` to finish the string literal")
     )]
     UnterminatedString {
-        #[source_code]
-        src: NamedSource<String>,
         #[label("string starts here but never closes")]
         span: SourceSpan,
     },
@@ -41,8 +37,6 @@ pub enum LexerError {
         help("character literals must end with a closing `'`")
     )]
     UnterminatedCharacter {
-        #[source_code]
-        src: NamedSource<String>,
         #[label("character literal starts here but never closes")]
         span: SourceSpan,
     },
@@ -53,8 +47,6 @@ pub enum LexerError {
         help("character literals must contain exactly one character or escape sequence")
     )]
     EmptyCharacter {
-        #[source_code]
-        src: NamedSource<String>,
         #[label("there is no character between these quotes")]
         span: SourceSpan,
     },
@@ -65,8 +57,6 @@ pub enum LexerError {
         help("use a string literal if you need more than one character")
     )]
     CharacterTooLong {
-        #[source_code]
-        src: NamedSource<String>,
         #[label("this literal contains more than one character")]
         span: SourceSpan,
     },
@@ -319,35 +309,30 @@ impl<'a> Lexer<'a> {
     fn unexpected_character(&self, index: usize, found: char) -> LexerError {
         LexerError::UnexpectedCharacter {
             found,
-            src: named_source(self.original_input),
             span: inclusive_span(index, index),
         }
     }
 
     fn unterminated_string(&self, quote_index: usize) -> LexerError {
         LexerError::UnterminatedString {
-            src: named_source(self.original_input),
             span: span_to_end(self.original_input, quote_index),
         }
     }
 
     fn unterminated_character(&self, quote_index: usize) -> LexerError {
         LexerError::UnterminatedCharacter {
-            src: named_source(self.original_input),
             span: span_to_end(self.original_input, quote_index),
         }
     }
 
     fn empty_character(&self, start_index: usize, end_index: usize) -> LexerError {
         LexerError::EmptyCharacter {
-            src: named_source(self.original_input),
             span: inclusive_span(start_index, end_index),
         }
     }
 
     fn character_too_long(&self, start_index: usize, end_index: usize) -> LexerError {
         LexerError::CharacterTooLong {
-            src: named_source(self.original_input),
             span: inclusive_span(start_index, end_index),
         }
     }
@@ -369,10 +354,6 @@ impl<'a> Iterator for Lexer<'a> {
 
 fn is_ident_start(ch: char) -> bool {
     ch.is_ascii_alphabetic() || ch == '_'
-}
-
-fn named_source(input: &str) -> NamedSource<String> {
-    NamedSource::new("input", input.to_string())
 }
 
 fn inclusive_span(start: usize, end: usize) -> SourceSpan {

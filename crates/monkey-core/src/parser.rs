@@ -1,22 +1,13 @@
 use crate::ast;
 use crate::lexer::{Lexer, LexerError};
 use crate::token::{Token, TokenType};
-use miette::{Diagnostic, NamedSource, SourceSpan};
+use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
 pub fn escape_str(input: &str) -> String {
-    let mut escaped = String::new();
+    let mut escaped = String::with_capacity(input.len());
     for ch in input.chars() {
-        match ch {
-            '\\' => escaped.push_str("\\\\"),
-            '\n' => escaped.push_str("\\n"),
-            '\r' => escaped.push_str("\\r"),
-            '\t' => escaped.push_str("\\t"),
-            '\0' => escaped.push_str("\\0"),
-            '"' => escaped.push_str("\\\""),
-            '\'' => escaped.push_str("\\\'"),
-            _ => escaped.push(ch),
-        }
+        push_escaped_char(&mut escaped, ch);
     }
     escaped
 }
@@ -44,6 +35,42 @@ pub fn unescape_str(input: &str) -> Option<String> {
     }
 
     Some(unescaped)
+}
+
+fn unescape_char(input: &str) -> Option<char> {
+    let mut chars = input.chars();
+    let value = match chars.next()? {
+        '\\' => match chars.next()? {
+            '\\' => '\\',
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            '0' => '\0',
+            '"' => '"',
+            '\'' => '\'',
+            _ => return None,
+        },
+        ch => ch,
+    };
+
+    if chars.next().is_none() {
+        Some(value)
+    } else {
+        None
+    }
+}
+
+fn push_escaped_char(output: &mut String, ch: char) {
+    match ch {
+        '\\' => output.push_str("\\\\"),
+        '\n' => output.push_str("\\n"),
+        '\r' => output.push_str("\\r"),
+        '\t' => output.push_str("\\t"),
+        '\0' => output.push_str("\\0"),
+        '"' => output.push_str("\\\""),
+        '\'' => output.push_str("\\\'"),
+        _ => output.push(ch),
+    }
 }
 
 #[repr(u8)]
@@ -94,10 +121,8 @@ pub enum ParserError {
         )
     )]
     UnexpectedToken {
-        expected: String,
-        found: String,
-        #[source_code]
-        src: NamedSource<String>,
+        expected: &'static str,
+        found: TokenType,
         #[label("unexpected token")]
         span: SourceSpan,
     },
@@ -108,9 +133,7 @@ pub enum ParserError {
         help("the input ended before this construct was complete")
     )]
     UnexpectedEof {
-        expected: String,
-        #[source_code]
-        src: NamedSource<String>,
+        expected: &'static str,
         #[label("input ends here")]
         span: SourceSpan,
     },
@@ -123,35 +146,27 @@ pub enum ParserError {
         )
     )]
     ExpectedExpression {
-        found: String,
-        #[source_code]
-        src: NamedSource<String>,
+        found: TokenType,
         #[label("this token cannot start an expression")]
         span: SourceSpan,
     },
 
-    #[error("invalid integer literal `{literal}`")]
+    #[error("invalid integer literal")]
     #[diagnostic(
         code(monkey::parser::invalid_integer),
         help("make sure the integer fits into a signed 64-bit value")
     )]
     InvalidIntegerLiteral {
-        literal: String,
-        #[source_code]
-        src: NamedSource<String>,
         #[label("this integer cannot be parsed")]
         span: SourceSpan,
     },
 
-    #[error("invalid float literal `{literal}`")]
+    #[error("invalid float literal")]
     #[diagnostic(
         code(monkey::parser::invalid_float),
         help("make sure this is a valid floating-point literal")
     )]
     InvalidFloatLiteral {
-        literal: String,
-        #[source_code]
-        src: NamedSource<String>,
         #[label("this float cannot be parsed")]
         span: SourceSpan,
     },
@@ -162,8 +177,6 @@ pub enum ParserError {
         help("check the escape sequences in this string literal")
     )]
     InvalidStringLiteral {
-        #[source_code]
-        src: NamedSource<String>,
         #[label("this string literal could not be decoded")]
         span: SourceSpan,
     },
@@ -174,8 +187,6 @@ pub enum ParserError {
         help("character literals must decode to exactly one character")
     )]
     InvalidCharacterLiteral {
-        #[source_code]
-        src: NamedSource<String>,
         #[label("this character literal is not valid")]
         span: SourceSpan,
     },
@@ -299,8 +310,7 @@ impl<'a> Parser<'a> {
             TokenType::Lsquare => self.parse_array(token),
             TokenType::Lsquirly => self.parse_dict(token),
             _ => Err(ParserError::ExpectedExpression {
-                found: describe_token(&token),
-                src: named_source(self.source),
+                found: token._type,
                 span: token_span(&token),
             }),
         }
@@ -320,8 +330,6 @@ impl<'a> Parser<'a> {
             .slice
             .parse::<i64>()
             .map_err(|_| ParserError::InvalidIntegerLiteral {
-                literal: token.slice.to_string(),
-                src: named_source(self.source),
                 span: token_span(&token),
             })?;
 
@@ -335,8 +343,6 @@ impl<'a> Parser<'a> {
             .slice
             .parse::<f64>()
             .map_err(|_| ParserError::InvalidFloatLiteral {
-                literal: token.slice.to_string(),
-                src: named_source(self.source),
                 span: token_span(&token),
             })?;
 
@@ -351,12 +357,10 @@ impl<'a> Parser<'a> {
                 .slice
                 .strip_suffix('"')
                 .ok_or_else(|| ParserError::InvalidStringLiteral {
-                    src: named_source(self.source),
                     span: token_span(&token),
                 })?;
 
         let value = unescape_str(literal).ok_or_else(|| ParserError::InvalidStringLiteral {
-            src: named_source(self.source),
             span: token_span(&token),
         })?;
 
@@ -371,29 +375,12 @@ impl<'a> Parser<'a> {
             .strip_prefix('\'')
             .and_then(|slice| slice.strip_suffix('\''))
             .ok_or_else(|| ParserError::InvalidCharacterLiteral {
-                src: named_source(self.source),
                 span: token_span(&token),
             })?;
 
-        let value = unescape_str(literal).ok_or_else(|| ParserError::InvalidCharacterLiteral {
-            src: named_source(self.source),
+        let value = unescape_char(literal).ok_or_else(|| ParserError::InvalidCharacterLiteral {
             span: token_span(&token),
         })?;
-
-        let mut chars = value.chars();
-        let value = chars
-            .next()
-            .ok_or_else(|| ParserError::InvalidCharacterLiteral {
-                src: named_source(self.source),
-                span: token_span(&token),
-            })?;
-
-        if chars.next().is_some() {
-            return Err(ParserError::InvalidCharacterLiteral {
-                src: named_source(self.source),
-                span: token_span(&token),
-            });
-        }
 
         Ok(ast::Expression::Char { value })
     }
@@ -725,25 +712,22 @@ impl<'a> Parser<'a> {
     fn next_required_token(&mut self, expected: &'static str) -> ParseResult<Token<'a>> {
         self.next_token()?
             .ok_or_else(|| ParserError::UnexpectedEof {
-                expected: expected.to_string(),
-                src: named_source(self.source),
+                expected,
                 span: eof_span(self.source),
             })
     }
 
-    fn unexpected_token<T>(&self, token: Token<'a>, expected: impl Into<String>) -> ParseResult<T> {
+    fn unexpected_token<T>(&self, token: Token<'a>, expected: &'static str) -> ParseResult<T> {
         Err(ParserError::UnexpectedToken {
-            expected: expected.into(),
-            found: describe_token(&token),
-            src: named_source(self.source),
+            expected,
+            found: token._type,
             span: token_span(&token),
         })
     }
 
-    fn unexpected_eof<T>(&self, expected: impl Into<String>) -> ParseResult<T> {
+    fn unexpected_eof<T>(&self, expected: &'static str) -> ParseResult<T> {
         Err(ParserError::UnexpectedEof {
-            expected: expected.into(),
-            src: named_source(self.source),
+            expected,
             span: eof_span(self.source),
         })
     }
@@ -799,10 +783,6 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn named_source(input: &str) -> NamedSource<String> {
-    NamedSource::new("input", input.to_string())
-}
-
 fn token_span(token: &Token<'_>) -> SourceSpan {
     (
         token.start_index,
@@ -813,17 +793,6 @@ fn token_span(token: &Token<'_>) -> SourceSpan {
 
 fn eof_span(input: &str) -> SourceSpan {
     (input.len(), 0).into()
-}
-
-fn describe_token(token: &Token<'_>) -> String {
-    match token._type {
-        TokenType::Ident => format!("identifier `{}`", token.slice),
-        TokenType::Integer => format!("integer literal `{}`", token.slice),
-        TokenType::Floating => format!("float literal `{}`", token.slice),
-        TokenType::String => format!("string literal `{}`", escape_str(token.slice)),
-        TokenType::Char => format!("character literal `{}`", escape_str(token.slice)),
-        _ => format!("`{}`", token._type),
-    }
 }
 
 #[cfg(test)]
@@ -1073,7 +1042,7 @@ mod test {
         assert!(matches!(error, ParserError::UnexpectedToken { .. }));
         assert_eq!(
             error.to_string(),
-            "expected an anonymous function in a let binding, found identifier `named`"
+            "expected an anonymous function in a let binding, found ident"
         );
     }
 
@@ -1569,7 +1538,7 @@ mod test {
             .expect_err("missing value should be reported");
 
         assert!(matches!(error, ParserError::ExpectedExpression { .. }));
-        assert_eq!(error.to_string(), "expected an expression, found `;`");
+        assert_eq!(error.to_string(), "expected an expression, found ;");
     }
 
     #[test]
